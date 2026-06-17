@@ -287,7 +287,7 @@ def theme_blocks(theme):
         ("limits & cost · low", run_bar(theme, "limit5h limit7d cost", LOW)),
         ("context · running hot", run_bar(theme, "ctx", HIGH)),
         ("limits & cost · running hot", run_bar(theme, "limit5h limit7d cost", HIGH)),
-        ("extras",             run_bar(theme, "lines style duration effort stash", HIGH)),
+        ("extras",             run_bar(theme, "effort lines style duration stash", HIGH)),
     ]
 
 def hero_blocks():
@@ -301,7 +301,7 @@ def lean_blocks():
         ("daily drive",       run_bar("claude-coral", "dir git model clock", LOW, lean)),
         ("context & limits",  run_bar("claude-coral", "ctx limit5h limit7d cost", MID, lean)),
         ("running hot",       run_bar("claude-coral", "ctx limit5h limit7d cost", HIGH, lean)),
-        ("extras",            run_bar("claude-coral", "lines style duration effort stash", HIGH, lean)),
+        ("extras",            run_bar("claude-coral", "effort lines style duration stash", HIGH, lean)),
         ("same data, pill style", run_bar("claude-coral", "dir git model clock", LOW)),
     ]
 
