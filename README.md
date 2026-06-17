@@ -202,6 +202,8 @@ Prefer Powerlevel10k's *lean* look — no backgrounds, just colored text? Set
 
 A theme is just a `.conf` file assigning `VL_BG_*` / `VL_FG_*` — copy one, change the colors,
 and source yours from `coralline.conf` instead. PRs with new themes are welcome.
+The wizard discovers themes automatically from `themes/*.conf` and nested collections such as
+`themes/best-themes/*.conf`, so adding a theme file does not require editing `configure.sh`.
 
 > **Adding a theme?** Copy an existing `.conf`, set every `VL_BG_*` / `VL_FG_*`
 > (including `VL_BG_EFFORT`), add its name to the `THEMES` list in

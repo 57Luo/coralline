@@ -13,7 +13,6 @@ CONFIG_FILE="${CORALLINE_CONFIG:-$HOME/.claude/coralline.conf}"
 SETTINGS_FILE="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
 P10K_FILE="${P10K_CONFIG:-$HOME/.p10k.zsh}"
 
-THEMES="claude-coral catppuccin-mocha nord gruvbox-dark tokyo-night dracula mono"
 SEGMENT_CHOICES="dir project git model ctx limit5h limit7d cost clock lines style duration effort stash"
 DEFAULT_SEGMENTS="dir git model ctx limit5h limit7d cost clock"
 
@@ -81,6 +80,17 @@ runtime_theme_dir() {
   else
     printf '%s\n' "$TARGET_DIR/themes"
   fi
+}
+
+theme_list() {
+  local dir
+  dir=$(runtime_theme_dir)
+  [ -d "$dir" ] || return 0
+  (cd "$dir" && find . -type f -name '*.conf' | sed 's#^\./##; s#\.conf$##' | sort)
+}
+
+theme_count() {
+  theme_list | wc -l | tr -d ' '
 }
 
 runtime_sample() {
@@ -334,10 +344,13 @@ flag_mark() {
 
 current_theme_index() {
   local i=1 t
-  for t in $THEMES; do
+  while IFS= read -r t; do
+    [ -n "$t" ] || continue
     if [ "$t" = "$theme" ]; then printf '%s\n' "$i"; return 0; fi
     i=$((i + 1))
-  done
+  done <<THEMES
+$(theme_list)
+THEMES
   printf '1\n'
 }
 
@@ -377,21 +390,36 @@ draw_screen_header() {
 
 theme_by_index() {
   local want="$1" i=0 t
-  for t in $THEMES; do
+  while IFS= read -r t; do
+    [ -n "$t" ] || continue
     [ "$i" = "$want" ] && { printf '%s\n' "$t"; return 0; }
     i=$((i + 1))
-  done
+  done <<THEMES
+$(theme_list)
+THEMES
   printf '%s\n' "$theme"
 }
 
 choose_theme_screen() {
-  local selected key i t mark pointer
+  local selected key i t mark pointer count win=14 start end
+  count=$(theme_count)
+  [ "$count" -gt 0 ] 2>/dev/null || die "no themes found in $(runtime_theme_dir)"
   selected=$(( $(current_theme_index) - 1 ))
   while :; do
     theme=$(theme_by_index "$selected")
     draw_screen_header "Theme" 120
-    i=0
-    for t in $THEMES; do
+    printf 'Theme %s/%s\n\n' "$((selected + 1))" "$count"
+    start=$((selected - win / 2))
+    [ "$start" -lt 0 ] && start=0
+    end=$((start + win))
+    if [ "$end" -gt "$count" ]; then
+      end="$count"
+      start=$((end - win))
+      [ "$start" -lt 0 ] && start=0
+    fi
+    i="$start"
+    while [ "$i" -lt "$end" ]; do
+      t=$(theme_by_index "$i")
       [ "$i" = "$selected" ] && pointer="❯" || pointer=" "
       [ "$i" = "$selected" ] && mark="✓" || mark=" "
       printf ' %s [%s] %s\n' "$pointer" "$mark" "$t"
@@ -400,7 +428,7 @@ choose_theme_screen() {
     clear_tail
     key=$(read_key) || return 1
     case "$key" in
-      up|down) selected=$(menu_move "$selected" "$key" 7) ;;
+      up|down) selected=$(menu_move "$selected" "$key" "$count") ;;
       enter) theme=$(theme_by_index "$selected"); return 0 ;;
       quit) leave_screen; exit 69 ;;
     esac
@@ -583,7 +611,9 @@ draw_details_menu() {
 }
 
 choose_theme() {
-  local i t answer
+  local i t answer count
+  count=$(theme_count)
+  [ "$count" -gt 0 ] 2>/dev/null || die "no themes found in $(runtime_theme_dir)"
   if [ -t 0 ] && [ -t 1 ]; then
     choose_theme_screen
     return 0
@@ -592,23 +622,29 @@ choose_theme() {
     show_step "Theme" 120
     printf '\nTheme\n'
     i=1
-    for t in $THEMES; do
+    while IFS= read -r t; do
+      [ -n "$t" ] || continue
       printf '  %s) [%s] %s\n' "$i" "$(check_mark "$theme" "$t")" "$t"
       i=$((i + 1))
-    done
+    done <<THEMES
+$(theme_list)
+THEMES
     answer=$(ask "Theme number, Enter to keep" "$(current_theme_index)")
     case "$answer" in
-      ''|*[!0-9]*) printf 'Choose a number from 1 to 7.\n' >&2 ;;
-      *) if [ "$answer" -ge 1 ] && [ "$answer" -le 7 ]; then
+      ''|*[!0-9]*) printf 'Choose a number from 1 to %s.\n' "$count" >&2 ;;
+      *) if [ "$answer" -ge 1 ] && [ "$answer" -le "$count" ]; then
            i=1
-           for t in $THEMES; do
+           while IFS= read -r t; do
+             [ -n "$t" ] || continue
              if [ "$i" = "$answer" ]; then theme="$t"; break; fi
              i=$((i + 1))
-           done
+           done <<THEMES
+$(theme_list)
+THEMES
            show_step "Theme selected" 120
            return 0
          fi
-         printf 'Choose a number from 1 to 7.\n' >&2 ;;
+         printf 'Choose a number from 1 to %s.\n' "$count" >&2 ;;
     esac
   done
 }
@@ -799,7 +835,7 @@ write_final_config() {
 }
 
 install_files() {
-  local theme_dir
+  local theme_dir rel
   command -v jq >/dev/null 2>&1 || die "jq is required by coralline and by the installer"
   need_file "$SCRIPT_DIR/statusline.sh"
   need_file "$SCRIPT_DIR/test/sample-input.json"
@@ -810,7 +846,13 @@ install_files() {
   cp "$SCRIPT_DIR/configure.sh" "$TARGET_DIR/configure.sh"
   cp "$SCRIPT_DIR/test/sample-input.json" "$TARGET_DIR/sample-input.json"
   theme_dir="$SCRIPT_DIR/themes"
-  cp "$theme_dir"/*.conf "$TARGET_DIR/themes/"
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    mkdir -p "$TARGET_DIR/themes/$(dirname "$rel")"
+    cp "$theme_dir/$rel" "$TARGET_DIR/themes/$rel"
+  done <<THEMES
+$(cd "$theme_dir" && find . -type f -name '*.conf' | sed 's#^\./##')
+THEMES
   chmod +x "$TARGET_DIR/statusline.sh" "$TARGET_DIR/configure.sh"
   installed=1
 }

@@ -9,7 +9,6 @@ set -u
 REPO="${CORALLINE_REPO:-Nanako0129/coralline}"
 REF="${CORALLINE_REF:-main}"
 BASE_URL="${CORALLINE_BASE_URL:-}"
-THEMES="claude-coral catppuccin-mocha nord gruvbox-dark tokyo-night dracula mono"
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)
 WORK_DIR=""
 TEMP_DIR=""
@@ -73,6 +72,43 @@ need_jq() {
 download() {
   local src="$1" dst="$2"
   curl -fsSL "$src" -o "$dst" || die "failed to download $src"
+}
+
+download_themes() {
+  local paths path dst count=0 local_base default_base
+  default_base="https://raw.githubusercontent.com/$REPO/$REF"
+  case "$BASE_URL" in
+    file://*)
+      local_base="${BASE_URL#file://}"
+      paths=$(cd "$local_base" 2>/dev/null && find themes -type f -name '*.conf' | sort || true)
+      ;;
+    "$default_base")
+      paths=$(curl -fsSL "https://api.github.com/repos/$REPO/git/trees/$REF?recursive=1" \
+        | jq -r '.tree[]? | select(.type == "blob" and (.path | test("^themes/.+\\.conf$"))) | .path' 2>/dev/null || true)
+      ;;
+    *)
+      paths=""
+      ;;
+  esac
+  if [ -z "$paths" ]; then
+    paths="themes/claude-coral.conf
+themes/catppuccin-mocha.conf
+themes/nord.conf
+themes/gruvbox-dark.conf
+themes/tokyo-night.conf
+themes/dracula.conf
+themes/mono.conf"
+  fi
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    dst="$WORK_DIR/$path"
+    mkdir -p "$(dirname "$dst")"
+    download "$BASE_URL/$path" "$dst"
+    count=$((count + 1))
+  done <<THEMES
+$paths
+THEMES
+  [ "$count" -gt 0 ] || die "no themes found"
 }
 
 while [ "$#" -gt 0 ]; do
@@ -156,9 +192,7 @@ else
   download "$BASE_URL/configure.sh" "$WORK_DIR/configure.sh"
   download "$BASE_URL/statusline.sh" "$WORK_DIR/statusline.sh"
   download "$BASE_URL/test/sample-input.json" "$WORK_DIR/test/sample-input.json"
-  for theme in $THEMES; do
-    download "$BASE_URL/themes/$theme.conf" "$WORK_DIR/themes/$theme.conf"
-  done
+  download_themes
 fi
 
 if [ "$CONFIGURE_MODE" = "--install-only" ]; then

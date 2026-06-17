@@ -132,8 +132,9 @@ Never import `~/.p10k.zsh` unless the user explicitly chooses or confirms that m
 
 Ask concise questions. If the user says "you decide", choose the defaults.
 
-1. **Theme**: `claude-coral` default, `catppuccin-mocha`, `nord`, `gruvbox-dark`,
-   `tokyo-night`, `dracula`, or `mono`.
+1. **Theme**: inspect `~/.claude/coralline/themes/**/*.conf` and offer the installed theme
+   labels. Default to `claude-coral` when unsure. Nested themes use labels like
+   `best-themes/github-dark`.
 2. **Style**: `pill` default, or `lean`.
 3. **Segments**: default is `dir git model ctx limit5h limit7d cost clock`.
    Optional: `project`, `lines`, `style`, `duration`, `effort`, `stash`.
