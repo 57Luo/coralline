@@ -42,6 +42,7 @@ T_BOLD=$(printf '\033[1m')
 T_DIM=$(printf '\033[2m')
 T_BLUE=$(printf '\033[38;5;81m')
 T_GREEN=$(printf '\033[38;5;114m')
+T_RED=$(printf '\033[38;5;167m')
 T_MAUVE=$(printf '\033[38;5;183m')
 T_CORAL=$(printf '\033[38;5;173m')
 T_WARN=$(printf '\033[38;5;179m')
@@ -165,13 +166,34 @@ ask_choice() {
 yes_no() {
   local prompt="$1" default="$2" answer
   while :; do
-    answer=$(ask "$prompt" "$default")
+    case "$default" in
+      y|Y) printf '%s [Y/n]: ' "$prompt" >&2 ;;
+      *) printf '%s [y/N]: ' "$prompt" >&2 ;;
+    esac
+    IFS= read -r answer
+    [ -n "$answer" ] || answer="$default"
     case "$answer" in
       y|Y|yes|YES) return 0 ;;
       n|N|no|NO) return 1 ;;
       *) printf 'Answer y or n.\n' >&2 ;;
     esac
   done
+}
+
+show_diff() {
+  if [ -t 1 ]; then
+    diff -u "$1" "$2" | while IFS= read -r line; do
+      case "$line" in
+        ---*|+++*) printf '%s%s%s\n' "$T_DIM" "$line" "$T_RESET" ;;
+        @@*) printf '%s%s%s\n' "$T_MAUVE" "$line" "$T_RESET" ;;
+        +*) printf '%s%s%s\n' "$T_GREEN" "$line" "$T_RESET" ;;
+        -*) printf '%s%s%s\n' "$T_RED" "$line" "$T_RESET" ;;
+        *) printf '%s\n' "$line" ;;
+      esac
+    done
+  else
+    diff -u "$1" "$2"
+  fi
 }
 
 enter_screen() {
@@ -875,17 +897,17 @@ write_final_config() {
   tmp=$(mktemp "${TMPDIR:-/tmp}/coralline-config.XXXXXX") || exit 1
   write_candidate_config "$tmp"
   if [ -f "$CONFIG_FILE" ]; then
-    printf '\nExisting config diff:\n'
-    diff -u "$CONFIG_FILE" "$tmp" || true
+    printf '\n%sExisting config diff:%s\n' "$T_BOLD" "$T_RESET"
+    show_diff "$CONFIG_FILE" "$tmp" || true
     if ! yes_no "Overwrite $CONFIG_FILE" n; then
       rm -f "$tmp"
-      printf 'Config unchanged.\n'
+      printf '%sConfig unchanged.%s\n' "$T_WARN" "$T_RESET"
       return 1
     fi
   fi
   mkdir -p "$(dirname "$CONFIG_FILE")"
   mv "$tmp" "$CONFIG_FILE"
-  printf 'Wrote %s\n' "$CONFIG_FILE"
+  printf '%sWrote%s %s\n' "$T_GREEN" "$T_RESET" "$CONFIG_FILE"
 }
 
 install_files() {
@@ -1082,5 +1104,5 @@ load_segment_choices
 main_menu
 write_final_config || exit 0
 verify_render
-printf '\nDone. Restart Claude Code or open a new session to see coralline.\n'
-printf 'Reconfigure anytime with:\n  bash %s/configure.sh\n' "$TARGET_DIR"
+printf '\n%sDone.%s Restart Claude Code or open a new session to see coralline.\n' "$T_GREEN" "$T_RESET"
+printf '%sReconfigure anytime with:%s\n  %sbash %s/configure.sh%s\n' "$T_DIM" "$T_RESET" "$T_CORAL" "$TARGET_DIR" "$T_RESET"
