@@ -1,9 +1,10 @@
 # coralline — AI Installation Playbook
 
 > **You are an AI coding assistant** and a user asked you to install coralline.
-> Humans and AI use the same entrypoint: the one-line installer. Run it for the
-> user, handle missing prerequisites, choose a setup path, and remind them they can
-> rerun the visual wizard later if they want to rice the statusline themselves.
+> Humans and AI use the same installer entrypoint, but not the same setup UX.
+> For AI installs, bootstrap the runtime with `install.sh --install-only`, interview
+> the user, write `~/.claude/coralline.conf`, and verify. Do not operate the human TUI
+> unless the user explicitly asks to customize visually.
 
 ## Overview
 
@@ -22,10 +23,17 @@ the `statusLine` command into `~/.claude/settings.json`.
 
 ## Fast Path
 
-Run:
+Bootstrap the runtime and Claude settings:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.sh | bash -s -- --install-only
+```
+
+If the user is testing a fork, keep the downloaded installer and runtime files on the same
+repo:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/miyago9267/coralline/main/install.sh | bash -s -- --repo miyago9267/coralline --install-only
 ```
 
 If you are already inside a local clone, run:
@@ -34,16 +42,13 @@ If you are already inside a local clone, run:
 bash install.sh
 ```
 
-The installer delegates to `configure.sh --install`, so it automatically enters the setup
-flow after downloading or locating the runtime files. It will:
+The installer delegates to `configure.sh --install-only` for AI installs. It will:
 
 1. copy the renderer, wizard, sample input, and bundled themes;
 2. merge the Claude Code `statusLine` setting with `jq`;
-3. offer setup choices for either the user or the AI assistant:
-   - **Default**: install the recommended look immediately;
-   - **Import `.p10k.zsh`**: carry over matching Powerlevel10k style and colors when available;
-   - **Visual wizard**: choose theme, segments, layout, glyph mode, and clock format with previews;
-4. render a sample statusline to verify the final config.
+3. exit without opening the human setup menu or writing theme config.
+
+After bootstrap, do the AI interview below and write `~/.claude/coralline.conf`.
 
 ## Prerequisites
 
@@ -77,25 +82,80 @@ bash ~/.claude/coralline/configure.sh
 To reinstall files and re-merge Claude settings:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.sh | bash -s -- --install-only
 ```
 
 ## AI Guidance
 
 When installing for a user:
 
-1. Run the fast-path installer first.
+1. Run the fast-path installer first with `--install-only`.
 2. If it fails because `jq` is missing, explain the package-manager command and rerun after
    the user installs it.
-3. If `~/.p10k.zsh` exists, prefer the import path unless the user asks for a fresh design.
-4. If the user wants detailed visual control, choose the visual wizard path and let them pick.
-5. If the user wants you to handle it, choose the default path or the p10k import path yourself.
+3. Interview the user with the questions below.
+4. Write `~/.claude/coralline.conf`.
+5. Verify with the bundled sample input.
 6. After success, tell the user to restart Claude Code or open a new session if the statusline
    does not appear immediately, and mention they can rerun
    `bash ~/.claude/coralline/configure.sh` to customize it later.
 
-Do not manually rewrite `~/.claude/settings.json` unless the installer cannot run. The wizard
-already performs a merge and creates a backup when a settings file exists.
+Do not manually rewrite `~/.claude/settings.json` unless the installer cannot run. The
+installer already performs a merge and creates a backup when a settings file exists.
+
+## AI Interview
+
+Ask concise questions. If the user says "you decide", choose the defaults.
+
+1. **Theme**: `claude-coral` default, `catppuccin-mocha`, `nord`, `gruvbox-dark`,
+   `tokyo-night`, `dracula`, or `mono`.
+2. **Style**: `pill` default, or `lean`.
+3. **Segments**: default is `dir git model ctx limit5h limit7d cost clock`.
+   Optional: `project`, `lines`, `style`, `duration`, `effort`, `stash`.
+4. **Layout**: responsive default (`VL_LAYOUT="auto"`, `VL_MAX_LINES=3`), single line,
+   fixed two lines, or fixed three lines.
+5. **Details**: clock `12h` default, `24h`, or `off`; Nerd Font yes/no; if they use git
+   worktrees, suggest enabling `project`.
+
+If `~/.p10k.zsh` exists, offer to import its style, clock, and main colors before asking the
+full questions. Read the file and map these values when present:
+
+| p10k setting | coralline config |
+|---|---|
+| Wizard options include `lean` | `VL_STYLE="lean"` |
+| Wizard options include `classic`, `rainbow`, or `powerline` | `VL_STYLE="pill"` |
+| Wizard options or time format indicate 24h | `VL_CLOCK="24h"` |
+| `POWERLEVEL9K_DIR_BACKGROUND` or `_FOREGROUND` | `VL_BG_DIR` |
+| `POWERLEVEL9K_VCS_CLEAN_*` | `VL_BG_GIT_OK` |
+| `POWERLEVEL9K_VCS_MODIFIED_*` / `_UNTRACKED_*` | `VL_BG_GIT_DIRTY` |
+| `POWERLEVEL9K_TIME_*` | `VL_BG_CLOCK` |
+
+## Write Config
+
+Create `~/.claude/coralline.conf`:
+
+```bash
+# coralline config
+. "$HOME/.claude/coralline/themes/claude-coral.conf"
+
+VL_STYLE="pill"
+VL_LAYOUT="auto"
+VL_MAX_LINES=3
+VL_WRAP_MARGIN=4
+VL_SEGMENTS="dir git model ctx limit5h limit7d cost clock"
+VL_SEGMENTS2=""
+VL_SEGMENTS3=""
+VL_CLOCK="12h"
+VL_CLOCK_SECONDS=1
+VL_BAR_WIDTH=5
+VL_COST_DECIMALS=2
+VL_PATH_DEPTH=4
+VL_NAME_MAX=0
+VL_ASCII=0
+VL_LEAN_SEP=""
+```
+
+Adjust the values based on the interview. If the config already exists, preserve the user's
+manual edits when possible, or show the change before overwriting.
 
 ## Manual Fallback
 

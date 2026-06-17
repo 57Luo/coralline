@@ -31,6 +31,8 @@ name_max=0
 lean_sep=""
 extra_config=""
 installed=0
+install_only=0
+setup_mode=""
 screen_active=0
 old_stty=""
 
@@ -41,6 +43,13 @@ coralline configure
 Options:
   --install    Copy coralline into ~/.claude/coralline, update Claude settings,
                then run the visual wizard.
+  --install-only
+               Copy coralline into ~/.claude/coralline and update Claude settings,
+               then exit without writing theme config.
+  --default    Use the coralline default config without opening the setup menu.
+  --import-p10k
+               Import ~/.p10k.zsh without opening the setup menu.
+  --wizard     Open the visual wizard directly.
   --help       Show this help.
 EOF
 }
@@ -898,6 +907,22 @@ draw_main_menu() {
 
 main_menu() {
   local answer max default_choice
+  case "$setup_mode" in
+    default)
+      preview_current 120
+      return 0
+      ;;
+    import-p10k)
+      [ -f "$P10K_FILE" ] || die "cannot import $P10K_FILE: file not found"
+      import_p10k
+      preview_current 120
+      return 0
+      ;;
+    wizard)
+      visual_wizard
+      return 0
+      ;;
+  esac
   if [ -t 0 ] && [ -t 1 ]; then
     enter_screen
     main_menu_screen
@@ -934,6 +959,10 @@ main_menu() {
 for arg in "$@"; do
   case "$arg" in
     --install) install_files; update_settings ;;
+    --install-only) install_files; update_settings; install_only=1 ;;
+    --default) setup_mode="default" ;;
+    --import-p10k) setup_mode="import-p10k" ;;
+    --wizard) setup_mode="wizard" ;;
     --help|-h) usage; exit 0 ;;
     *) usage; exit 1 ;;
   esac
@@ -941,6 +970,8 @@ done
 
 trap 'leave_screen' EXIT
 trap 'leave_screen; exit 130' INT TERM
+
+[ "$install_only" = "1" ] && exit 0
 
 main_menu
 write_final_config || exit 0

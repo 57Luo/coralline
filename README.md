@@ -14,12 +14,13 @@ Paste this into Claude Code:
 
 ```text
 Please install coralline for me:
-curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.sh | bash
+fetch https://raw.githubusercontent.com/Nanako0129/coralline/main/INSTALL.md
+and follow the playbook in it.
 ```
 
-Claude will run the same installer humans use, help with any missing prerequisites, choose a
-setup path for you, and remind you that you can rerun the visual wizard if the first result
-doesn't match your taste.
+Claude will read the playbook, use the same installer to bootstrap the runtime, interview you
+about the look, write the config, verify it, and remind you that you can rerun the visual
+wizard if the first result doesn't match your taste.
 
 ## Install Yourself
 
@@ -31,9 +32,8 @@ curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.s
 
 ## Setup Choices
 
-Both paths run the same installer. It copies the renderer and bundled themes, updates
-`~/.claude/settings.json`, then automatically opens the setup flow and asks you or Claude to
-choose:
+Both paths use the same installer. Humans run it with no mode and get the visual setup. Claude
+uses it with `--install-only`, then follows `INSTALL.md` to interview you and write config.
 
 | Mode | Use when |
 |---|---|
@@ -41,10 +41,19 @@ choose:
 | Powerlevel10k import | You already have `~/.p10k.zsh` and want to carry over its style, time format, and main colors |
 | Visual wizard | You want to preview themes, style, segments, wrapping, clock, and font compatibility before writing config |
 
+Running the installer yourself with no mode opens the interactive setup. Claude should not
+operate that TUI unless you explicitly ask for visual customization.
+
 Re-run the wizard anytime to restyle:
 
 ```bash
 bash ~/.claude/coralline/configure.sh
+```
+
+Testing a fork? Point the installer at the same fork:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/miyago9267/coralline/main/install.sh | bash -s -- --repo miyago9267/coralline
 ```
 
 ## What you get

@@ -14,11 +14,12 @@
 
 ```text
 Please install coralline for me:
-curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.sh | bash
+fetch https://raw.githubusercontent.com/Nanako0129/coralline/main/INSTALL.md
+and follow the playbook in it.
 ```
 
-Claude 會執行同一支 installer、協助處理缺少的依賴、幫你選完設定流程，最後提醒你
-如果不滿意可以自己重新開啟視覺化 wizard。
+Claude 會先讀 playbook，再用同一支 installer bootstrap runtime、訪談你的外觀偏好、
+寫入設定並驗證，最後提醒你如果不滿意可以自己重新開啟視覺化 wizard。
 
 ## 自己安裝
 
@@ -30,8 +31,8 @@ curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.s
 
 ## 設定選項
 
-兩種方式都會執行同一支 installer。它會安裝 renderer、複製內建主題、
-更新 `~/.claude/settings.json`，接著自動開啟設定流程，讓你或 Claude 選：
+兩種方式都使用同一支 installer。人類不帶模式參數執行時會進入視覺化設定；
+Claude 則使用 `--install-only` bootstrap，接著依照 `INSTALL.md` 訪談並寫入設定。
 
 | 模式 | 適合情境 |
 |---|---|
@@ -39,10 +40,19 @@ curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.s
 | Powerlevel10k import | 已經有 `~/.p10k.zsh`，想帶入 style、時間格式與主要色彩 |
 | 視覺化 wizard | 想先預覽 theme、style、segments、折行、時鐘與字型相容性 |
 
+自己直接執行 installer、不帶模式參數時，會開啟互動式設定。除非你明確要求視覺化自訂，
+Claude 不需要操作這個人類 TUI。
+
 之後要重新調整外觀可以跑：
 
 ```bash
 bash ~/.claude/coralline/configure.sh
+```
+
+測試 fork 時，可以讓 installer 指向同一個 fork：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/miyago9267/coralline/main/install.sh | bash -s -- --repo miyago9267/coralline
 ```
 
 ## 效果
