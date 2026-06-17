@@ -295,7 +295,7 @@ def lean_blocks():
         ("daily drive",       run_bar("claude-coral", "dir git model clock", LOW, lean)),
         ("context & limits",  run_bar("claude-coral", "ctx limit5h limit7d cost", MID, lean)),
         ("running hot",       run_bar("claude-coral", "ctx limit5h limit7d cost", HIGH, lean)),
-        ("extras",            run_bar("claude-coral", "lines style duration stash", HIGH, lean)),
+        ("extras",            run_bar("claude-coral", "lines style duration effort stash", HIGH, lean)),
         ("same data, pill style", run_bar("claude-coral", "dir git model clock", LOW)),
     ]
 
