@@ -38,14 +38,13 @@ VL_WARN_PCT=50                  # percentage thresholds for bar colors
 VL_HOT_PCT=75
 VL_ASCII=0                      # 1 = no Nerd Font glyphs (plain colored blocks)
 
-# ── Burn-rate segment (range-to-empty); opt-in, default off ──────────────────
-VL_BURN=0                       # 1 = sample 5h% each render + enable seg_burn
+# ── Burn-rate segment (range-to-empty) ───────────────────────────────────────
+# Opt in by adding `burn` to VL_SEGMENTS*; the sampler below runs only then.
 CORALLINE_BURN_WINDOW=600       # recent-slope lookback for 5h, seconds
-VL_BURN_SHOWRATE=0              # 1 = also show the binding limit's rate
 VL_BURN_GLYPH="↗"               # plain-Unicode, arrow family (kept in VL_ASCII)
 VL_BG_BURN=""                   # empty → inherits VL_BG_5H at the use site
-VL_BURN_TRIM=1500               # max rows kept in the sample file
 BURN_FILE="${CORALLINE_BURN_FILE:-$HOME/.claude/coralline/burn-5h.tsv}"
+BURN_TRIM=1500                  # internal: max rows kept in the sample file
 
 # Powerline glyphs (printf -v keeps these fork-free; cleared when VL_ASCII=1)
 printf -v VL_CAP_L '\xee\x82\xb6'   # U+E0B6 left rounded cap
@@ -161,9 +160,10 @@ fmt_tok() {
   else _TOK="$n"; fi
 }
 
-# Accepts epoch seconds (with or without decimals) or an ISO 8601 timestamp → _EP
-# Claude Code sends epoch ints, so the common path is fork-free; the ISO
-# fallback (rare) is the only place that may shell out to date.
+# Accepts epoch seconds (with or without decimals) or an ISO 8601 timestamp → _EP.
+# Claude Code sends rate-limit resets_at as ISO ("…Z"), so that branch shells out
+# to date once per call — the same fork seg_limit's countdown already pays. The
+# epoch-int branch is the fork-free path for callers that already hold epoch.
 to_epoch() {
   local t="$1" s
   [ -z "$t" ] && return 1
@@ -209,6 +209,9 @@ fmt_eta() {  # → _ETA ; $1=seconds (mirrors fmt_countdown's d/h/m formatting)
 burn_sample() {  # append one 5h sample; $1=now $2=pct(raw) $3=resets_at(raw)
   [ -n "$2" ] || return 0
   to_epoch "$3" || return 0
+  # [ -d ] is a builtin (steady state stays fork-free); mkdir forks only on the
+  # first render after a fresh install, when ~/.claude/coralline/ doesn't exist.
+  [ -d "${BURN_FILE%/*}" ] || mkdir -p "${BURN_FILE%/*}" 2>/dev/null
   printf '%s\t%s\t%s\n' "$1" "$2" "$_EP" >> "$BURN_FILE" 2>/dev/null
 }
 
@@ -217,7 +220,7 @@ burn_eta_5h() {  # → _B5_STATE _B5_ETA _B5_RATE _B5_TTR ; trims $BURN_FILE
   [ -f "$BURN_FILE" ] || return 0
   local tmp="$BURN_FILE.$$.tmp" out
   out=$(awk -F'\t' -v now="$NOW" -v win="$CORALLINE_BURN_WINDOW" \
-            -v trim="$VL_BURN_TRIM" -v tmp="$tmp" '
+            -v trim="$BURN_TRIM" -v tmp="$tmp" '
     $2 != "" {
       e = $1 + 0
       if (!(e in seen)) { ord[++n] = e; seen[e] = 1 }
@@ -313,20 +316,13 @@ seg_burn() {
     else                                  push "$bg" "${_FG} ${VL_BURN_GLYPH} ⇢ … "; fi
     return 0
   fi
-  local eta="$_BURN_ETA" ttr="$_BURN_TTR" col rate=""
+  local eta="$_BURN_ETA" ttr="$_BURN_TTR" col
   if   [ "$eta" -le "$ttr" ];               then col="$VL_FG_HOT"
   elif [ $(( 10 * ttr )) -ge $(( 8 * eta )) ]; then col="$VL_FG_WARN"
   else                                            col="$VL_FG_OK"; fi
   fmt_eta "$eta"
-  if [ "$VL_BURN_SHOWRATE" = "1" ]; then
-    if [ "$_BURN_LABEL" = "5h" ]; then
-      rate=$(awk -v r="$_BURN_RATE" 'BEGIN { printf "%.1f%%/10m ", r * 600 }')
-    else
-      rate=$(awk -v r="$_BURN_RATE" 'BEGIN { printf "%.0f%%/d ", r * 86400 }')
-    fi
-  fi
   fg "$col"
-  push "$bg" "${_FG} ${VL_BURN_GLYPH}${_BURN_LABEL} ${rate}⇢ ${_ETA} "
+  push "$bg" "${_FG} ${VL_BURN_GLYPH} ${_BURN_LABEL} ⇢ ${_ETA} "
 }
 
 pct_fg() {  # → _PFG (a color spec) ; $1=pct
@@ -631,7 +627,11 @@ term_cols() {  # → _COLS
   _COLS="$c"
 }
 
-[ "$VL_BURN" = "1" ] && burn_sample "$NOW" "$fh_pct" "$fh_rst"
+# Sample only when the burn segment is actually shown — the segment list is the
+# single source of truth, so enabling burn in configure.sh just works.
+case " $VL_SEGMENTS $VL_SEGMENTS2 $VL_SEGMENTS3 " in
+  *" burn "*) burn_sample "$NOW" "$fh_pct" "$fh_rst" ;;
+esac
 
 if [ "$VL_LAYOUT" = "auto" ]; then
   build_segments "$VL_SEGMENTS"

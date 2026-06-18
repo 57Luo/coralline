@@ -32,9 +32,14 @@ eq "sample row" "$(cat "$BURN_FILE")" "$(printf '1781794590\t6\t1781811000')"
 burn_sample 1781794600 "" 1781811000
 eq "sample empty-pct no-op" "$(wc -l < "$BURN_FILE" | tr -d ' ')" "1"
 
+# missing parent dir → created on demand, sample still written (issue #17 bug)
+BURN_FILE="$TMPD/nodir/burn.tsv"
+burn_sample 1781794590 6 1781811000
+eq "sample creates missing dir" "$(cat "$BURN_FILE" 2>/dev/null)" "$(printf '1781794590\t6\t1781811000')"
+
 eval "$(sed -n '/^burn_eta_5h() {/,/^}/p' "$SCRIPT")"
 CORALLINE_BURN_WINDOW=600
-VL_BURN_TRIM=1500
+BURN_TRIM=1500
 
 # helper: write a fixture and run the estimator at a given "now"
 run5h() { BURN_FILE="$TMPD/b5.tsv"; printf '%b' "$1" > "$BURN_FILE"; NOW="$2"; burn_eta_5h; }
@@ -67,11 +72,11 @@ eq "5h empty state" "$_B5_STATE" "warming"
 eq "5h empty eta"   "$_B5_ETA"   "inf"
 
 # trim: 5 rows, trim=3 → file keeps last 3
-VL_BURN_TRIM=3
+BURN_TRIM=3
 run5h "1\t6\t9\n2\t6\t9\n3\t7\t9\n4\t7\t9\n5\t8\t9\n" 6
 eq "5h trim rowcount" "$(wc -l < "$TMPD/b5.tsv" | tr -d ' ')" "3"
 eq "5h trim first-kept" "$(head -1 "$TMPD/b5.tsv" | cut -f1)" "3"
-VL_BURN_TRIM=1500
+BURN_TRIM=1500
 
 eval "$(sed -n '/^burn_eta_7d() {/,/^}/p' "$SCRIPT")"
 
@@ -94,7 +99,7 @@ eval "$(sed -n '/^fg() {/,/^}/p'            "$SCRIPT")"
 eval "$(sed -n '/^push() {/,/^}/p'          "$SCRIPT")"
 eval "$(sed -n '/^burn_estimate() {/,/^}/p' "$SCRIPT")"
 eval "$(sed -n '/^seg_burn() {/,/^}/p'      "$SCRIPT")"
-VL_BURN_GLYPH="↗"; VL_BURN_SHOWRATE=0; VL_BG_BURN=""; VL_BG_5H=237; VL_LAYOUT="fixed"
+VL_BURN_GLYPH="↗"; VL_BG_BURN=""; VL_BG_5H=237; VL_LAYOUT="fixed"
 VL_FG_OK=114; VL_FG_WARN=179; VL_FG_HOT=167; VL_FG_DIM=245
 fh_pct=8 wd_pct=0
 
@@ -126,7 +131,7 @@ eq "binding idle nolabel" "$_BURN_LABEL" ""
 SEG_BGS=(); SEG_TXT=(); SEG_LEN=()
 M5S=active M5E=21600 M5R=0 M5T=15000  M7E=7200 M7R=0 M7T=3600
 seg_burn
-case "${SEG_TXT[0]}" in *"↗7d"*"⇢ 2h00m"*) ok "render active 7d" ;; *) bad "render active 7d" "got=${SEG_TXT[0]}" ;; esac
+case "${SEG_TXT[0]}" in *"↗ 7d"*"⇢ 2h00m"*) ok "render active 7d" ;; *) bad "render active 7d" "got=${SEG_TXT[0]}" ;; esac
 case "${SEG_TXT[0]}" in *$'\033[38;5;114m'*) ok "render OK colour" ;; *) bad "render OK colour" "no OK fg in ${SEG_TXT[0]}" ;; esac
 
 # render: active 5h binding, eta 5m ≤ ttr 10m → you empty before reset → HOT colour
@@ -158,19 +163,27 @@ M5S=active M5E=5000 M5R=0 M5T=9000  M7E=5000 M7R=0 M7T=9000
 burn_estimate
 eq "tie→5h"            "$_BURN_LABEL" "5h"
 
-# VL_BURN_SHOWRATE=1: 5h-binding active case; rate 0.008 %/s × 600 = 4.8%/10m
-VL_BURN_SHOWRATE=1
-SEG_BGS=(); SEG_TXT=(); SEG_LEN=()
-M5S=active M5E=21600 M5R=0.008 M5T=99999  M7E=inf M7R=0 M7T=0
-fh_pct=8 wd_pct=0
-seg_burn
-case "${SEG_TXT[0]}" in *"%/10m"*) ok "showrate %/10m label" ;; *) bad "showrate %/10m label" "got=${SEG_TXT[0]}" ;; esac
-VL_BURN_SHOWRATE=0
-
 # guard: neither limit reported → segment renders nothing
 SEG_BGS=(); SEG_TXT=(); SEG_LEN=()
 fh_pct="" wd_pct=""
 seg_burn
 eq "neither-reported renders nothing" "${#SEG_TXT[@]}" "0"
+
+# ── integration: the sampler runs iff `burn` is in the segment list (issue #17) ─
+# Drives the whole statusline.sh so the top-level gate is exercised end to end.
+if command -v jq >/dev/null 2>&1; then
+  gate_run() {  # $1=VL_SEGMENTS → "written" if a sample landed, else "absent"
+    local conf="$TMPD/conf.sh" bf="$TMPD/gate/burn.tsv"
+    rm -rf "$TMPD/gate"
+    printf 'VL_SEGMENTS=%q\n' "$1" > "$conf"
+    CORALLINE_CONFIG="$conf" CORALLINE_BURN_FILE="$bf" \
+      bash "$SCRIPT" < "$HERE/sample-input.json" >/dev/null 2>&1
+    [ -f "$bf" ] && echo written || echo absent
+  }
+  eq "gate: burn listed → samples"    "$(gate_run 'dir burn clock')" "written"
+  eq "gate: burn absent → no samples" "$(gate_run 'dir clock')"      "absent"
+else
+  ok "gate integration (skipped: no jq)"
+fi
 
 [ "$fail" -eq 0 ] && echo "ALL PASS" || { echo "SOME FAILED"; exit 1; }

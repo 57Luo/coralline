@@ -23,7 +23,7 @@
 | `effort` | reasoning effort level (`ψ`) — `low` / `med` / `high` / `xhigh` / `max` |
 | `ctx` | context-window gauge, input/output/cache token counts |
 | `limit5h` / `limit7d` | rate-limit gauges with reset countdown |
-| `burn` | range-to-empty: projected time until the binding limit (5h or 7d) hits 100% at the recent burn rate (`↗`); opt-in via `VL_BURN=1` |
+| `burn` | range-to-empty: projected time until the binding limit (5h or 7d) hits 100% at the recent burn rate (`↗`); opt-in by adding `burn` to `VL_SEGMENTS` |
 | `lines` | lines added/removed this session |
 | `cost` | session cost in USD |
 | `style` | active output style |
@@ -146,15 +146,13 @@ Everything lives in `~/.claude/coralline.conf` (plain bash, sourced by the scrip
 | `VL_ASCII` | `0` | `1` disables Nerd Font glyphs |
 | `VL_BG_*` / `VL_FG_*` | theme | colors — `256`-color index or `"R,G,B"` |
 
-**Burn-rate (`burn`) segment.** Off by default. Set `VL_BURN=1` and add `burn` to
-`VL_SEGMENTS` to show a "range to empty" — the projected time until whichever rate
-limit (5h or 7d) binds first, e.g. `↗5h ⇢ 1h58m`. It colours green/yellow/red by
-whether you'll hit that wall before the window resets. Keys: `CORALLINE_BURN_WINDOW`
-(recent-slope lookback, default 600s), `VL_BURN_SHOWRATE` (also show the rate),
-`VL_BURN_GLYPH` (default `↗`), `VL_BG_BURN` (defaults to the 5h background),
-`VL_BURN_TRIM` (max samples kept, default 1500). When `VL_BURN=1`, coralline writes
-samples to `~/.claude/coralline/burn-5h.tsv`; with the default `VL_BURN=0` nothing is
-written.
+**Burn-rate (`burn`) segment.** Off by default. Add `burn` to `VL_SEGMENTS` to show
+a "range to empty" — the projected time until whichever rate limit (5h or 7d) binds
+first, e.g. `↗5h ⇢ 1h58m`. It colours green/yellow/red by whether you'll hit that
+wall before the window resets. Keys: `CORALLINE_BURN_WINDOW` (recent-slope lookback,
+default 600s), `VL_BURN_GLYPH` (default `↗`), `VL_BG_BURN` (defaults to the 5h
+background). While `burn` is in the segment list, coralline writes samples to
+`~/.claude/coralline/burn-5h.tsv`; drop it from the list and nothing is written.
 
 ### Responsive layout
 
