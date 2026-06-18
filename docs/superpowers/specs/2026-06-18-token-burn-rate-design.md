@@ -9,7 +9,7 @@
 ## Goal
 
 Show, in a compact opt-in statusline segment, **how long until the 5h rate limit hits
-100% at your _recent_ burn rate** — a fuel-gauge "range to empty", e.g. `⛽ ⇢1h58m`.
+100% at your _recent_ burn rate** — a fuel-gauge "range to empty", e.g. `↗ ⇢1h58m`.
 
 The car analogy that seeded this: the dashboard already shows the fuel level and a
 clock; what it lacks is *instantaneous consumption → remaining range*. That remaining
@@ -85,7 +85,7 @@ is not visible anywhere today and that is precisely what warns you when you have
 │        • detect 1% crossings, classify state               │
 │        • compute recent rate + ETA                         │
 │        • rewrite file trimmed to last N rows               │
-│     render  ⛽ ⇢<ETA>  (or …/— for warming/idle)            │
+│     render  ↗ ⇢<ETA>  (or …/— for warming/idle)            │
 └─────────────────────────────────────────────────────────────┘
                           │
               ~/.claude/coralline/burn-5h.tsv
@@ -136,9 +136,9 @@ is the lookback. Evaluate these conditions **top-to-bottom; first match wins** (
 | State | Condition (first match wins) | Render |
 |---|---|---|
 | `reset` | `%` decreased anywhere in the file | discard history → re-evaluate as `warming` |
-| `active` | **≥2** crossings inside the lookback window | `⛽ ⇢<ETA>` (coloured) |
-| `idle` | **≥1** crossing exists in history, but **0** inside the lookback window (you were burning, then stopped) | `⛽ ⇢—` (dim) |
-| `warming` | otherwise (cold start / just reset — not yet two crossings to measure) | `⛽ ⇢…` (dim) |
+| `active` | **≥2** crossings inside the lookback window | `↗ ⇢<ETA>` (coloured) |
+| `idle` | **≥1** crossing exists in history, but **0** inside the lookback window (you were burning, then stopped) | `↗ ⇢—` (dim) |
+| `warming` | otherwise (cold start / just reset — not yet two crossings to measure) | `↗ ⇢…` (dim) |
 
 **Active computation** (quantization-robust — both endpoints are exact 1% crossings):
 
@@ -167,10 +167,13 @@ most.
 
 ## Display & colouring
 
-- **Headline = ETA** (range to empty): `⛽ ⇢1h58m`.
-- `VL_BURN_SHOWRATE=1` additionally renders the recent rate: `⛽ 4.8%/10m ⇢1h58m`.
-- Glyph configurable (`VL_BURN_GLYPH`, default a fuel/gauge mark); Nerd-Font and
-  `VL_ASCII` fallbacks follow the existing segment conventions.
+- **Headline = ETA** (range to empty): `↗ ⇢1h58m`.
+- `VL_BURN_SHOWRATE=1` additionally renders the recent rate: `↗ 4.8%/10m ⇢1h58m`.
+- Glyph configurable (`VL_BURN_GLYPH`, default **`↗`** U+2197). Chosen to match
+  coralline's plain-Unicode convention (the segment glyphs are geometric Unicode, not
+  Nerd-Font PUA) and to sit in the existing arrow family (`↑ ↓ ↺`): a half-width,
+  universally-rendered "consumption trending up" mark. `VL_ASCII` falls back to a plain
+  ASCII token per existing segment conventions.
 
 **Colouring — "ratio" rule (chosen over an absolute-ETA threshold).** The existing
 gauges colour purely by fill % (50/75 thresholds) and know nothing about rate or
@@ -207,7 +210,7 @@ per-theme background without editing any theme file.
 | `VL_BURN` | `0` | `1` = sampler writes `burn-5h.tsv` and `seg_burn` is enabled |
 | `CORALLINE_BURN_WINDOW` | `600` | recent-slope lookback, seconds |
 | `VL_BURN_SHOWRATE` | `0` | also render the `%/10m` rate beside the ETA |
-| `VL_BURN_GLYPH` | (fuel/gauge mark) | segment glyph (with `VL_ASCII` fallback) |
+| `VL_BURN_GLYPH` | `↗` (U+2197) | segment glyph — plain-Unicode, arrow family (with `VL_ASCII` fallback) |
 | `VL_BG_BURN` | `${VL_BG_5H}` | segment background; inherits the 5h family colour |
 | `VL_BURN_TRIM` | `1500` | max rows kept in `burn-5h.tsv` |
 
