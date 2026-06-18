@@ -137,10 +137,12 @@ Ask concise questions. If the user says "you decide", choose the defaults.
    `best-themes/github-dark`.
 2. **Style**: `pill` default, or `lean`.
 3. **Segments**: default is `dir git model ctx limit5h limit7d cost clock`.
-   Optional extras: `project`, `effort`, `lines`, `style`, `duration`, `stash`.
+   Optional extras: `project`, `effort`, `burn`, `lines`, `style`, `duration`, `stash`.
    Write the chosen segments to `VL_SEGMENTS` in this canonical order (keep only the
-   ones the user wants): `dir project git model effort ctx limit5h limit7d lines cost
-   style duration stash clock`. So opting in `effort` lands it right after `model`.
+   ones the user wants): `dir project git model effort ctx limit5h limit7d burn lines
+   cost style duration stash clock`. So opting in `effort` lands it right after `model`.
+   `burn` (projected time until a rate limit binds) writes a small sample file to
+   `~/.claude/coralline/burn-5h.tsv` while it is in the list, and nothing when it is not.
 4. **Layout**: responsive default (`VL_LAYOUT="auto"`, `VL_MAX_LINES=3`), single line,
    fixed two lines, or fixed three lines.
 5. **Details**: clock `12h` default, `24h`, or `off`; Nerd Font yes/no; if they use git

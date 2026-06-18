@@ -146,13 +146,15 @@ Everything lives in `~/.claude/coralline.conf` (plain bash, sourced by the scrip
 | `VL_ASCII` | `0` | `1` disables Nerd Font glyphs |
 | `VL_BG_*` / `VL_FG_*` | theme | colors — `256`-color index or `"R,G,B"` |
 
-**Burn-rate (`burn`) segment.** Off by default. Add `burn` to `VL_SEGMENTS` to show
-a "range to empty" — the projected time until whichever rate limit (5h or 7d) binds
-first, e.g. `↗5h ⇢ 1h58m`. It colours green/yellow/red by whether you'll hit that
-wall before the window resets. Keys: `CORALLINE_BURN_WINDOW` (recent-slope lookback,
-default 600s), `VL_BURN_GLYPH` (default `↗`), `VL_BG_BURN` (defaults to the 5h
-background). While `burn` is in the segment list, coralline writes samples to
-`~/.claude/coralline/burn-5h.tsv`; drop it from the list and nothing is written.
+### Burn-rate segment
+
+Off by default. Add `burn` to `VL_SEGMENTS` to show a "range to empty" — the projected
+time until whichever rate limit (5h or 7d) binds first, e.g. `↗5h ⇢ 1h58m`. It colours
+green/yellow/red by whether you'll hit that wall before the window resets. Keys:
+`CORALLINE_BURN_WINDOW` (recent-slope lookback, default 600s), `VL_BURN_GLYPH` (default
+`↗`), `VL_BG_BURN` (defaults to the 5h background). While `burn` is in the segment list,
+coralline writes samples to `~/.claude/coralline/burn-5h.tsv`; drop it from the list and
+nothing is written.
 
 ### Responsive layout
 

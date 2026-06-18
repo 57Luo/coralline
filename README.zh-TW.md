@@ -142,12 +142,13 @@ curl -fsSL https://raw.githubusercontent.com/YOU/coralline/main/install.sh | bas
 | `VL_ASCII` | `0` | 設為 `1` 停用 Nerd Font 字符 |
 | `VL_BG_*` / `VL_FG_*` | 依主題 | 顏色——256 色編號或 `"R,G,B"` |
 
-**消耗率區段（`burn`）。** 預設關閉。把 `burn` 加入 `VL_SEGMENTS` 即可顯示「到期倒數」
-—— 根據最近燒耗率推算，到達限額上限（5h 或 7d）還剩多久，例如 `↗5h ⇢ 1h58m`。
-如果會在視窗重置前撞上那道牆就變紅，則逐漸轉黃至綠。相關鍵：`CORALLINE_BURN_WINDOW`
-（近期斜率回溯長度，預設 600s）、`VL_BURN_GLYPH`（預設 `↗`）、
-`VL_BG_BURN`（預設用 5h 的背景色）。只要 `burn` 在區段清單裡，coralline 就會寫入
-樣本到 `~/.claude/coralline/burn-5h.tsv`；從清單移除後便不再寫入任何檔案。
+### 消耗率區段
+
+預設關閉。把 `burn` 加入 `VL_SEGMENTS` 即可顯示「到期倒數」—— 根據最近燒耗率推算，
+到達限額上限（5h 或 7d）還剩多久，例如 `↗5h ⇢ 1h58m`。如果會在視窗重置前撞上那道牆
+就變紅，則逐漸轉黃至綠。相關鍵：`CORALLINE_BURN_WINDOW`（近期斜率回溯長度，預設 600s）、
+`VL_BURN_GLYPH`（預設 `↗`）、`VL_BG_BURN`（預設用 5h 的背景色）。只要 `burn` 在區段
+清單裡，coralline 就會寫入樣本到 `~/.claude/coralline/burn-5h.tsv`；從清單移除後便不再寫入任何檔案。
 
 ### 響應式版面
 
