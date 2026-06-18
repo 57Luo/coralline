@@ -215,7 +215,7 @@ burn_sample() {  # append one 5h sample; $1=now $2=pct(raw) $3=resets_at(raw)
 burn_eta_5h() {  # → _B5_STATE _B5_ETA _B5_RATE _B5_TTR ; trims $BURN_FILE
   _B5_STATE="warming"; _B5_ETA="inf"; _B5_RATE="0"; _B5_TTR="0"
   [ -f "$BURN_FILE" ] || return 0
-  local tmp="$BURN_FILE.tmp" out
+  local tmp="$BURN_FILE.$$.tmp" out
   out=$(awk -F'\t' -v now="$NOW" -v win="$CORALLINE_BURN_WINDOW" \
             -v trim="$VL_BURN_TRIM" -v tmp="$tmp" '
     $2 != "" {
@@ -261,6 +261,10 @@ burn_eta_5h() {  # → _B5_STATE _B5_ETA _B5_RATE _B5_TTR ; trims $BURN_FILE
     }
   ' "$BURN_FILE")
   [ -f "$tmp" ] && mv "$tmp" "$BURN_FILE" 2>/dev/null
+  for _f in "$BURN_FILE".*.tmp; do        # sweep tmps orphaned by dead sessions
+    [ -e "$_f" ] || break                  # literal glob → no orphans
+    [ "$_f" = "$tmp" ] || rm -f "$_f" 2>/dev/null
+  done
   read -r _B5_STATE _B5_ETA _B5_RATE _B5_TTR <<EOF
 $out
 EOF
