@@ -23,6 +23,7 @@
 | `effort` | 推理強度（`ψ`）—— `low` / `med` / `high` / `xhigh` / `max` |
 | `ctx` | context window 量表、輸入/輸出/快取 token 數 |
 | `limit5h` / `limit7d` | 用量限額量表與重置倒數 |
+| `burn` | 消耗時間預估：根據最近燒耗率推算，何時會達到限額上限（5h 或 7d）100%（`↗`）；設定 `VL_BURN=1` 啟用 |
 | `lines` | 本次 session 修改行數 |
 | `cost` | 本次 session 花費（USD） |
 | `style` | 目前的 output style |
@@ -140,6 +141,14 @@ curl -fsSL https://raw.githubusercontent.com/YOU/coralline/main/install.sh | bas
 | `VL_WARN_PCT` / `VL_HOT_PCT` | `50` / `75` | 量表變色門檻 |
 | `VL_ASCII` | `0` | 設為 `1` 停用 Nerd Font 字符 |
 | `VL_BG_*` / `VL_FG_*` | 依主題 | 顏色——256 色編號或 `"R,G,B"` |
+
+**消耗率區段（`burn`）。** 預設關閉。設定 `VL_BURN=1` 並把 `burn` 加入 `VL_SEGMENTS`，
+會顯示「到期倒數」—— 根據最近燒耗率推算，到達限額上限（5h 或 7d）還剩多久，例如 `↗5h ⇢1h58m`。
+如果會在視窗重置前撞上那道牆就變紅，則逐漸轉黃至綠。相關鍵：`CORALLINE_BURN_WINDOW`
+（近期斜率回溯長度，預設 600s）、`VL_BURN_SHOWRATE`（同時顯示燒耗率）、
+`VL_BURN_GLYPH`（預設 `↗`）、`VL_BG_BURN`（預設用 5h 的背景色）、
+`VL_BURN_TRIM`（保留樣本上限，預設 1500）。啟用 `VL_BURN=1` 時，coralline 會寫入
+樣本到 `~/.claude/coralline/burn-5h.tsv`；預設 `VL_BURN=0` 時則不寫入任何檔案。
 
 ### 響應式版面
 
