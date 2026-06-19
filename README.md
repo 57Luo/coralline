@@ -23,6 +23,7 @@
 | `effort` | reasoning effort level (`ψ`) — `low` / `med` / `high` / `xhigh` / `max` |
 | `ctx` | context-window gauge, input/output/cache token counts |
 | `limit5h` / `limit7d` | rate-limit gauges with reset countdown |
+| `burn` | range-to-empty: projected time until the binding limit (5h or 7d) hits 100% at the recent burn rate (`↗`); opt-in by adding `burn` to `VL_SEGMENTS` |
 | `lines` | lines added/removed this session |
 | `cost` | session cost in USD |
 | `style` | active output style |
@@ -144,6 +145,29 @@ Everything lives in `~/.claude/coralline.conf` (plain bash, sourced by the scrip
 | `VL_WARN_PCT` / `VL_HOT_PCT` | `50` / `75` | gauge color thresholds |
 | `VL_ASCII` | `0` | `1` disables Nerd Font glyphs |
 | `VL_BG_*` / `VL_FG_*` | theme | colors — `256`-color index or `"R,G,B"` |
+
+### Burn-rate segment
+
+Off by default. Add `burn` to `VL_SEGMENTS` to show a "range to empty" — the projected
+time until whichever rate limit (5h or 7d) binds first, e.g. `↗ 5h ⇢ 1h58m`. Keys:
+`CORALLINE_BURN_WINDOW` (recent-slope lookback, default 600s), `VL_BURN_GLYPH` (default
+`↗`), `VL_BG_BURN` (defaults to the 5h background). While `burn` is in the segment list,
+coralline writes samples to `~/.claude/coralline/burn-5h.tsv`; drop it from the list and
+nothing is written.
+
+The countdown is coloured by urgency against the window reset: red if you'd empty before
+the window resets, yellow for a close call, green once you'll comfortably reset in time.
+The number disappears — replaced by a bright-green `↗ ✓` — only when the projected
+range-to-empty is longer than the limit's whole window (5h or 7d): at that pace you
+couldn't run it dry even starting from a fresh window, so a figure like `24d15h` would
+just be noise. A dim `↗ …` is the warming state — a cold start with no samples yet, so
+there's nothing to project (deliberately not a green check, so a fresh install doesn't
+read as healthy). A dim `↗ ✓` means you've simply stopped burning: nothing in flight.
+
+The label tells you which limit binds — whichever of `5h`/`7d` will hit 100% soonest.
+`5h` only appears once you're burning hard enough to register at least two integer-%
+steps within the recent window; at a light or steady pace there's no short-term slope to
+fit, so the 7d projection binds and you see `↗ 7d`.
 
 ### Responsive layout
 

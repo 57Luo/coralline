@@ -43,6 +43,14 @@ VL_FLOAT_SEP="  ·  "            # separator between float segments (plain text,
 VL_FLOAT_FILE="$HOME/.claude/coralline/float.txt"
 VL_NOCOLOR=0                    # internal: fg()/bg() emit nothing when 1 (plain-text path)
 
+# ── Burn-rate segment (range-to-empty) ───────────────────────────────────────
+# Opt in by adding `burn` to VL_SEGMENTS*; the sampler below runs only then.
+CORALLINE_BURN_WINDOW=600       # recent-slope lookback for 5h, seconds
+VL_BURN_GLYPH="↗"               # plain-Unicode, arrow family (kept in VL_ASCII)
+VL_BG_BURN=""                   # empty → inherits VL_BG_5H at the use site
+BURN_FILE="${CORALLINE_BURN_FILE:-$HOME/.claude/coralline/burn-5h.tsv}"
+BURN_TRIM=1500                  # internal: max rows kept in the sample file
+
 # Powerline glyphs (printf -v keeps these fork-free; cleared when VL_ASCII=1)
 printf -v VL_CAP_L '\xee\x82\xb6'   # U+E0B6 left rounded cap
 printf -v VL_CAP_R '\xee\x82\xb4'   # U+E0B4 right rounded cap
@@ -159,9 +167,10 @@ fmt_tok() {
   else _TOK="$n"; fi
 }
 
-# Accepts epoch seconds (with or without decimals) or an ISO 8601 timestamp → _EP
-# Claude Code sends epoch ints, so the common path is fork-free; the ISO
-# fallback (rare) is the only place that may shell out to date.
+# Accepts epoch seconds (with or without decimals) or an ISO 8601 timestamp → _EP.
+# Claude Code sends rate-limit resets_at as ISO ("…Z"), so that branch shells out
+# to date once per call — the same fork seg_limit's countdown already pays. The
+# epoch-int branch is the fork-free path for callers that already hold epoch.
 to_epoch() {
   local t="$1" s
   [ -z "$t" ] && return 1
@@ -194,6 +203,154 @@ fmt_duration() {  # → _DUR ; $1=ms
   if   [ "$h" -gt 0 ]; then printf -v _DUR '%dh%02dm' "$h" "$m"
   elif [ "$m" -gt 0 ]; then printf -v _DUR '%dm' "$m"
   else                      printf -v _DUR '%ds' "$s"; fi
+}
+
+fmt_eta() {  # → _ETA ; $1=seconds (mirrors fmt_countdown's d/h/m formatting)
+  local s="${1:-0}" d h m
+  d=$(( s / 86400 )); h=$(( (s % 86400) / 3600 )); m=$(( (s % 3600) / 60 ))
+  if   [ "$d" -gt 0 ]; then printf -v _ETA '%dd%02dh' "$d" "$h"
+  elif [ "$h" -gt 0 ]; then printf -v _ETA '%dh%02dm' "$h" "$m"
+  else                      printf -v _ETA '%dm' "$m"; fi
+}
+
+burn_sample() {  # append one 5h sample; $1=now $2=pct(raw) $3=resets_at(raw)
+  [ -n "$2" ] || return 0
+  to_epoch "$3" || return 0
+  # [ -d ] is a builtin (steady state stays fork-free); mkdir forks only on the
+  # first render after a fresh install, when ~/.claude/coralline/ doesn't exist.
+  [ -d "${BURN_FILE%/*}" ] || mkdir -p "${BURN_FILE%/*}" 2>/dev/null
+  printf '%s\t%s\t%s\n' "$1" "$2" "$_EP" >> "$BURN_FILE" 2>/dev/null
+}
+
+burn_eta_5h() {  # → _B5_STATE _B5_ETA _B5_RATE _B5_TTR ; trims $BURN_FILE
+  _B5_STATE="warming"; _B5_ETA="inf"; _B5_RATE="0"; _B5_TTR="0"
+  [ -f "$BURN_FILE" ] || return 0
+  local tmp="$BURN_FILE.$$.tmp" out
+  out=$(awk -F'\t' -v now="$NOW" -v win="$CORALLINE_BURN_WINDOW" \
+            -v trim="$BURN_TRIM" -v tmp="$tmp" '
+    $2 != "" {
+      e = $1 + 0
+      if (!(e in seen)) { ord[++n] = e; seen[e] = 1 }
+      pct[e] = $2 + 0; rst[e] = $3 + 0
+    }
+    END {
+      if (n == 0) { print "warming inf 0 0"; next_done = 1 }
+      if (!next_done) {
+        start = 1
+        for (i = 2; i <= n; i++)
+          if (int(pct[ord[i]]) < int(pct[ord[i-1]])) start = i
+        le = ord[n]; lp = pct[le]
+        ttr = rst[le] - now; if (ttr < 0) ttr = 0
+        cwin = now - win
+        fc_t = 0; fc_p = -1; lc_t = 0; lc_p = -1; ncross = 0; anycross = 0
+        for (i = start + 1; i <= n; i++) {
+          a = int(pct[ord[i-1]]); b = int(pct[ord[i]])
+          if (b > a) {
+            anycross = 1; ct = ord[i]
+            if (ct >= cwin && ct <= now) {
+              if (fc_p < 0) { fc_t = ct; fc_p = b }
+              lc_t = ct; lc_p = b; ncross++
+            }
+          }
+        }
+        if (ncross >= 2 && lc_t > fc_t && lc_p > fc_p) {
+          rate = (lc_p - fc_p) / (lc_t - fc_t)
+          eta = (100 - lp) / rate; if (eta < 0) eta = 0
+          printf "active %.0f %.10f %d\n", eta, rate, ttr
+        } else if (anycross && ncross == 0) {
+          print "idle inf 0 " ttr
+        } else {
+          print "warming inf 0 " ttr
+        }
+        # Trim on PHYSICAL rows (NR), not distinct seconds (n): sub-second render
+        # bursts (resize storms) append same-second rows that n dedups away, so an
+        # n-based cap would never fire and the file would grow unbounded. The
+        # rewrite emits the deduped last-`trim` seconds, so it also collapses the
+        # burst rows. Fires only when the file actually exceeds the cap.
+        if (NR > trim) {
+          lo = n - trim + 1; if (lo < 1) lo = 1
+          for (i = lo; i <= n; i++)
+            printf "%d\t%s\t%d\n", ord[i], pct[ord[i]], rst[ord[i]] > tmp
+        }
+      }
+    }
+  ' "$BURN_FILE")
+  [ -f "$tmp" ] && mv "$tmp" "$BURN_FILE" 2>/dev/null
+  for _f in "$BURN_FILE".*.tmp; do        # sweep tmps orphaned by dead sessions
+    [ -e "$_f" ] || break                  # literal glob → no orphans
+    [ "$_f" = "$tmp" ] || rm -f "$_f" 2>/dev/null
+  done
+  read -r _B5_STATE _B5_ETA _B5_RATE _B5_TTR <<EOF
+$out
+EOF
+}
+
+burn_eta_7d() {  # → _B7_ETA _B7_RATE _B7_TTR (stateless; uses wd_pct/wd_rst)
+  _B7_ETA="inf"; _B7_RATE="0"; _B7_TTR="0"
+  [ -n "$wd_pct" ] || return 0
+  to_epoch "$wd_rst" || return 0
+  read -r _B7_ETA _B7_RATE _B7_TTR <<EOF
+$(awk -v p="$wd_pct" -v r="$_EP" -v now="$NOW" 'BEGIN {
+    ttr = r - now; if (ttr < 0) ttr = 0
+    ws = r - 7 * 86400; el = now - ws
+    if (p + 0 <= 0 || el <= 0) { print "inf 0 " ttr; exit }
+    rate = (p + 0) / el
+    eta = (100 - (p + 0)) / rate; if (eta < 0) eta = 0
+    printf "%.0f %.10f %d\n", eta, rate, ttr
+  }')
+EOF
+}
+
+burn_estimate() {  # → _BURN_STATE _BURN_LABEL _BURN_ETA _BURN_RATE _BURN_TTR
+  burn_eta_5h; burn_eta_7d
+  local f5=0 f7=0
+  [ "$_B5_ETA" != "inf" ] && f5=1
+  [ "$_B7_ETA" != "inf" ] && f7=1
+  if [ "$f5" = 1 ] && { [ "$f7" = 0 ] || [ "$_B5_ETA" -le "$_B7_ETA" ]; }; then
+    _BURN_STATE="active"; _BURN_LABEL="5h"
+    _BURN_ETA="$_B5_ETA"; _BURN_RATE="$_B5_RATE"; _BURN_TTR="$_B5_TTR"
+  elif [ "$f7" = 1 ]; then
+    _BURN_STATE="active"; _BURN_LABEL="7d"
+    _BURN_ETA="$_B7_ETA"; _BURN_RATE="$_B7_RATE"; _BURN_TTR="$_B7_TTR"
+  else
+    _BURN_ETA="inf"; _BURN_RATE="0"; _BURN_TTR="0"; _BURN_LABEL=""
+    if [ "$_B5_STATE" = "idle" ]; then _BURN_STATE="idle"; else _BURN_STATE="warming"; fi
+  fi
+}
+
+seg_burn() {
+  [ -n "$fh_pct" ] || [ -n "$wd_pct" ] || return 0
+  # _BURN_* is precomputed once per render (see the burn_estimate call beside the
+  # sampler below), so the visible and float passes share one computation.
+  local bg="${VL_BG_BURN:-$VL_BG_5H}"
+  # Nothing to project yet. Idle (stopped burning) is genuinely all-good → dim ✓.
+  # Warming (no samples yet, e.g. a fresh install) is "unknown", not healthy → a
+  # distinct dim … so a cold start doesn't read as a reassuring green check.
+  if [ "$_BURN_STATE" != "active" ]; then
+    fg "$VL_FG_DIM"
+    if [ "$_BURN_STATE" = "warming" ]; then
+      push "$bg" "${_FG} ${VL_BURN_GLYPH} … "
+    else
+      push "$bg" "${_FG} ${VL_BURN_GLYPH} ✓ "
+    fi
+    return 0
+  fi
+  local eta="$_BURN_ETA" ttr="$_BURN_TTR" col win
+  # All good: the projected empty is longer than the limit's whole window, so at
+  # this pace you couldn't run it dry even from a fresh window — show ✓, not a
+  # meaningless multi-day countdown. The window is per-limit (5h vs 7d).
+  case "$_BURN_LABEL" in 5h) win=18000 ;; *) win=604800 ;; esac
+  if [ "$eta" -gt "$win" ]; then
+    fg "$VL_FG_OK"
+    push "$bg" "${_FG} ${VL_BURN_GLYPH} ✓ "
+    return 0
+  fi
+  if   [ "$eta" -le "$ttr" ];               then col="$VL_FG_HOT"
+  elif [ $(( 10 * ttr )) -ge $(( 8 * eta )) ]; then col="$VL_FG_WARN"
+  else                                            col="$VL_FG_OK"; fi
+  fmt_eta "$eta"
+  fg "$col"
+  push "$bg" "${_FG} ${VL_BURN_GLYPH} ${_BURN_LABEL} ⇢ ${_ETA} "
 }
 
 pct_fg() {  # → _PFG (a color spec) ; $1=pct
@@ -499,6 +656,14 @@ term_cols() {  # → _COLS
   case "$c" in (''|*[!0-9]*) c=0 ;; esac
   _COLS="$c"
 }
+
+# Sample only when the burn segment is actually shown — the segment list is the
+# single source of truth, so enabling burn in configure.sh just works. _SEG_SCAN
+# also covers VL_FLOAT_SEGMENTS, so burn samples even when it's only in the float
+# readout (mirrors how read_git is gated above).
+case "$_SEG_SCAN" in
+  *" burn "*) burn_sample "$NOW" "$fh_pct" "$fh_rst"; burn_estimate ;;
+esac
 
 # Defensive ANSI stripper (the VL_NOCOLOR path should already emit none) → _PLAIN.
 strip_ansi() {
