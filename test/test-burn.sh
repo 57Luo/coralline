@@ -136,6 +136,7 @@ eq "binding idle nolabel" "$_BURN_LABEL" ""
 # (you couldn't empty even a full window at this pace) → bright-green ✓, no number.
 SEG_BGS=(); SEG_TXT=(); SEG_LEN=()
 M5S=active M5E=inf M5R=0 M5T=0  M7E=2127600 M7R=0 M7T=3600
+burn_estimate
 seg_burn
 case "${SEG_TXT[0]}" in *"↗ ✓"*) ok "render all-good 7d check" ;; *) bad "render all-good 7d check" "got=${SEG_TXT[0]}" ;; esac
 case "${SEG_TXT[0]}" in *"⇢"*) bad "all-good drops countdown" "got=${SEG_TXT[0]}" ;; *) ok "all-good drops countdown" ;; esac
@@ -144,6 +145,7 @@ case "${SEG_TXT[0]}" in *$'\033[38;5;114m'*) ok "all-good OK colour" ;; *) bad "
 # the window is per-label: 5h binding with eta 20000s (> the 5h/18000s window) → ✓ too
 SEG_BGS=(); SEG_TXT=(); SEG_LEN=()
 M5S=active M5E=20000 M5R=0 M5T=600  M7E=inf M7R=0 M7T=0
+burn_estimate
 seg_burn
 case "${SEG_TXT[0]}" in *"↗ ✓"*) ok "render all-good 5h check" ;; *) bad "render all-good 5h check" "got=${SEG_TXT[0]}" ;; esac
 
@@ -151,6 +153,7 @@ case "${SEG_TXT[0]}" in *"↗ ✓"*) ok "render all-good 5h check" ;; *) bad "re
 # shows the number, coloured green here (comfortable vs reset: eta 17400 > 1.25·ttr 7200).
 SEG_BGS=(); SEG_TXT=(); SEG_LEN=()
 M5S=active M5E=17400 M5R=0 M5T=7200  M7E=inf M7R=0 M7T=0
+burn_estimate
 seg_burn
 case "${SEG_TXT[0]}" in *"↗ 5h ⇢ 4h50m"*) ok "render green number" ;; *) bad "render green number" "got=${SEG_TXT[0]}" ;; esac
 case "${SEG_TXT[0]}" in *"✓"*) bad "under-window keeps number" "got=${SEG_TXT[0]}" ;; *) ok "under-window keeps number" ;; esac
@@ -160,6 +163,7 @@ case "${SEG_TXT[0]}" in *$'\033[38;5;114m'*) ok "green number OK colour" ;; *) b
 # and the actionable countdown number is kept.
 SEG_BGS=(); SEG_TXT=(); SEG_LEN=()
 M5S=active M5E=300 M5R=0 M5T=600  M7E=inf M7R=0 M7T=0
+burn_estimate
 seg_burn
 case "${SEG_TXT[0]}" in *$'\033[38;5;167m'*) ok "render HOT colour" ;; *) bad "render HOT colour" "no HOT fg in ${SEG_TXT[0]}" ;; esac
 case "${SEG_TXT[0]}" in *"⇢ "*) ok "HOT keeps countdown" ;; *) bad "HOT keeps countdown" "got=${SEG_TXT[0]}" ;; esac
@@ -167,6 +171,7 @@ case "${SEG_TXT[0]}" in *"⇢ "*) ok "HOT keeps countdown" ;; *) bad "HOT keeps 
 # render: idle → dim all-good ✓ (not burning), no dash placeholder
 SEG_BGS=(); SEG_TXT=(); SEG_LEN=()
 M5S=idle M5E=inf M5R=0 M5T=0  M7E=inf M7R=0 M7T=0
+burn_estimate
 seg_burn
 case "${SEG_TXT[0]}" in *"↗ ✓"*) ok "render idle check" ;; *) bad "render idle check" "got=${SEG_TXT[0]}" ;; esac
 case "${SEG_TXT[0]}" in *$'\033[38;5;245m'*) ok "render idle dim" ;; *) bad "render idle dim" "no DIM fg in ${SEG_TXT[0]}" ;; esac
@@ -175,6 +180,7 @@ case "${SEG_TXT[0]}" in *$'\033[38;5;245m'*) ok "render idle dim" ;; *) bad "ren
 # and the countdown number is kept (only the green band collapses to ✓).
 SEG_BGS=(); SEG_TXT=(); SEG_LEN=()
 M5S=active M5E=1000 M5R=0 M5T=900  M7E=inf M7R=0 M7T=0
+burn_estimate
 seg_burn
 case "${SEG_TXT[0]}" in *$'\033[38;5;179m'*) ok "render WARN colour" ;; *) bad "render WARN colour" "no WARN fg in ${SEG_TXT[0]}" ;; esac
 case "${SEG_TXT[0]}" in *"⇢ "*) ok "WARN keeps countdown" ;; *) bad "WARN keeps countdown" "got=${SEG_TXT[0]}" ;; esac
@@ -182,9 +188,20 @@ case "${SEG_TXT[0]}" in *"⇢ "*) ok "WARN keeps countdown" ;; *) bad "WARN keep
 # render: warming (cold start, no data) → dim all-good ✓, no … placeholder
 SEG_BGS=(); SEG_TXT=(); SEG_LEN=()
 M5S=warming M5E=inf M5R=0 M5T=0  M7E=inf M7R=0 M7T=0
+burn_estimate
 seg_burn
 case "${SEG_TXT[0]}" in *"↗ ✓"*) ok "render warming check" ;; *) bad "render warming check" "got=${SEG_TXT[0]}" ;; esac
 case "${SEG_TXT[0]}" in *$'\033[38;5;245m'*) ok "render warming dim" ;; *) bad "render warming dim" "no DIM fg in ${SEG_TXT[0]}" ;; esac
+
+# contract: seg_burn renders a PRECOMPUTED estimate and must NOT recompute. The
+# stubs say warming, but the precomputed _BURN_* says active/5h — seg_burn has to
+# honour the globals (burn_estimate is hoisted to run once per render, upstream of
+# seg_burn, so float and visible passes share one computation).
+SEG_BGS=(); SEG_TXT=(); SEG_LEN=()
+M5S=warming M5E=inf M5R=0 M5T=0  M7E=inf M7R=0 M7T=0
+_BURN_STATE=active _BURN_LABEL=5h _BURN_ETA=1000 _BURN_RATE=0 _BURN_TTR=900
+seg_burn
+case "${SEG_TXT[0]}" in *"↗ 5h ⇢ "*) ok "seg_burn renders precomputed estimate" ;; *) bad "seg_burn renders precomputed estimate" "got=${SEG_TXT[0]}" ;; esac
 
 # tie-break: equal ETAs (5000s) → 5h wins via -le comparison
 M5S=active M5E=5000 M5R=0 M5T=9000  M7E=5000 M7R=0 M7T=9000

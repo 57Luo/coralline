@@ -320,7 +320,8 @@ burn_estimate() {  # → _BURN_STATE _BURN_LABEL _BURN_ETA _BURN_RATE _BURN_TTR
 
 seg_burn() {
   [ -n "$fh_pct" ] || [ -n "$wd_pct" ] || return 0
-  burn_estimate
+  # _BURN_* is precomputed once per render (see the burn_estimate call beside the
+  # sampler below), so the visible and float passes share one computation.
   local bg="${VL_BG_BURN:-$VL_BG_5H}"
   # Warming (no data yet) and idle (stopped burning) both have nothing to
   # project — show a dim all-good ✓ rather than a placeholder.
@@ -656,7 +657,7 @@ term_cols() {  # → _COLS
 # also covers VL_FLOAT_SEGMENTS, so burn samples even when it's only in the float
 # readout (mirrors how read_git is gated above).
 case "$_SEG_SCAN" in
-  *" burn "*) burn_sample "$NOW" "$fh_pct" "$fh_rst" ;;
+  *" burn "*) burn_sample "$NOW" "$fh_pct" "$fh_rst"; burn_estimate ;;
 esac
 
 # Defensive ANSI stripper (the VL_NOCOLOR path should already emit none) → _PLAIN.
