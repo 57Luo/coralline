@@ -234,6 +234,24 @@ report_upgrade_delta() {  # $1=old statusline $2=new statusline $3=backup path (
   printf '\n%senable: rerun configure.sh, or let Claude wire them in (see UPGRADE.md)%s\n' "$cd" "$cr"
 }
 
+# Back up an install dir's statusline.sh to statusline.sh.bak.<ts> (mirrors the
+# settings.json.bak.<ts> convention), keep only the 3 newest, and echo the new
+# backup path. Echo nothing on failure or when statusline.sh is absent (fail
+# open). A single-file copy, so a symlinked install dir is harmless.
+backup_statusline() {  # $1=install dir
+  # Keep the N newest timestamped backups; prune older ones. A rollback safety
+  # net, not history — a few recent copies cover slip-ups without piling up.
+  local dir="$1" src="$1/statusline.sh" bak old keep_backups=3
+  [ -f "$src" ] || return 0
+  bak="${src}.bak.$(date +%Y%m%d-%H%M%S)"
+  [ -e "$bak" ] && bak="${bak}.$$"
+  cp "$src" "$bak" 2>/dev/null || return 0
+  printf '%s\n' "$bak"
+  ls -1t "${src}".bak.* 2>/dev/null | tail -n +$((keep_backups + 1)) | while IFS= read -r old; do
+    rm -f "$old" 2>/dev/null
+  done
+}
+
 segment_total() {
   set -- $SEGMENT_CHOICES
   printf '%s\n' "$#"

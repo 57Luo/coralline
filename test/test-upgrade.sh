@@ -96,4 +96,24 @@ rep3=$(T_BOLD=$'\033[1m' T_RESET=$'\033[0m' T_CORAL=$'\033[38;5;173m' T_DIM=$'\0
        report_upgrade_delta "$tmp/old.sh" "$tmp/new.sh" "")
 case "$rep3" in *$'\033'*) check "no ANSI when piped (non-tty)" 0 ;; *) check "no ANSI when piped (non-tty)" 1 ;; esac
 
+# ---- Section D: backup_statusline ----------------------------------------
+eval "$(sed -n '/^backup_statusline() {/,/^}/p' "$CONF")"
+
+mkdir -p "$tmp/inst/coralline"
+printf 'OLD-RUNTIME\n' > "$tmp/inst/coralline/statusline.sh"
+bpath=$(backup_statusline "$tmp/inst/coralline")
+[ -n "$bpath" ] && [ -f "$bpath" ] && check "backup file created" 1 || check "backup file created" 0
+[ "$(cat "$bpath" 2>/dev/null)" = "OLD-RUNTIME" ] && check "backup holds old statusline" 1 || check "backup holds old statusline" 0
+case "$bpath" in "$tmp/inst/coralline/statusline.sh.bak."*) check "backup path matches statusline.sh.bak.<ts>" 1 ;; *) check "backup path matches statusline.sh.bak.<ts>" 0 ;; esac
+
+# Keep only the 3 newest: seed 4 older backups, then back up once more.
+for n in 1 2 3 4; do : > "$tmp/inst/coralline/statusline.sh.bak.2020010${n}-000000"; done
+backup_statusline "$tmp/inst/coralline" >/dev/null
+nbak=$(ls -1 "$tmp/inst/coralline"/statusline.sh.bak.* 2>/dev/null | wc -l | tr -d ' ')
+[ "$nbak" = "3" ] && check "prunes to 3 newest backups" 1 || check "prunes to 3 newest backups (got $nbak)" 0
+
+# Absent statusline → empty, no crash.
+mkdir -p "$tmp/inst/empty"
+[ -z "$(backup_statusline "$tmp/inst/empty")" ] && check "absent statusline → empty path" 1 || check "absent statusline → empty path" 0
+
 if [ "$fail" -eq 0 ]; then echo "ALL PASS"; else echo "SOME FAILED"; exit 1; fi
