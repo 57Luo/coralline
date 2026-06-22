@@ -62,6 +62,12 @@ BURN_TRIM=1500                  # internal: max rows kept in the sample file
 VL_LIMIT_SYNC=0
 RL5H_FILE="${CORALLINE_RL5H_FILE:-$HOME/.claude/coralline/limit-5h.tsv}"
 RL7D_FILE="${CORALLINE_RL7D_FILE:-$HOME/.claude/coralline/limit-7d.tsv}"
+# Per-window ceilings for the sentinel guard (#32): a reset further out than its
+# window can possibly be is corrupt (e.g. sample-input.json's 2030 value) and must
+# never become the high-water. Kept per window because a stale 5h value a couple of
+# days out would clear a shared 7d-sized bound, so the 5h path needs its own.
+RL_MAX_5H=$(( 6 * 3600 ))       # internal: 5h window resets within ~5h (6h = +1h skew margin)
+RL_MAX_7D=$(( 8 * 86400 ))      # internal: 7d window resets within 7d (8d = +1d skew margin)
 
 # Powerline glyphs (printf -v keeps these fork-free; cleared when VL_ASCII=1)
 printf -v VL_CAP_L '\xee\x82\xb6'   # U+E0B6 left rounded cap
@@ -228,6 +234,10 @@ fmt_eta() {  # → _ETA ; $1=seconds (mirrors fmt_countdown's d/h/m formatting)
 burn_sample() {  # append one 5h sample; $1=now $2=pct(raw) $3=resets_at(raw)
   [ -n "$2" ] || return 0
   to_epoch "$3" || return 0
+  # Reject an implausibly-far-future reset (corrupt/sentinel snapshot): this is the
+  # 5h window, which resets within hours, so anything past now+RL_MAX_5H would
+  # otherwise poison the burn projection permanently (see #32).
+  [ "$_EP" -le "$(( $1 + RL_MAX_5H ))" ] || return 0
   # [ -d ] is a builtin (steady state stays fork-free); mkdir forks only on the
   # first render after a fresh install, when ~/.claude/coralline/ doesn't exist.
   [ -d "${BURN_FILE%/*}" ] || mkdir -p "${BURN_FILE%/*}" 2>/dev/null
@@ -247,9 +257,15 @@ burn_sample() {  # append one 5h sample; $1=now $2=pct(raw) $3=resets_at(raw)
 #          untouched, so a concurrent higher add is never lost (no lock needed).
 rl_dir() { _RLD="${1%.tsv}.d"; }
 
-rl_sample() {  # $1=file $2=pct(raw int/float) $3=resets_at(raw)
+rl_sample() {  # $1=file $2=pct(raw int/float) $3=resets_at(raw) $4=max secs ahead
   [ -n "$2" ] || return 0
   to_epoch "$3" || return 0
+  # Reject an implausibly-far-future reset (corrupt/sentinel snapshot): a value past
+  # now plus this window's ceiling ($4) would win rl_latest's high-water forever and
+  # rmdir every real entry (see #32). The caller passes RL_MAX_5H or RL_MAX_7D so a
+  # stale 5h value days out is rejected, not just an absurd one. Guarded on NOW and
+  # on $4 being supplied so direct unit calls without a clock keep recording.
+  [ -z "${NOW:-}" ] || [ -z "${4:-}" ] || [ "$_EP" -le "$(( NOW + $4 ))" ] || return 0
   rl_dir "$1"
   if [ ! -d "$_RLD" ]; then
     mkdir -p "$_RLD" 2>/dev/null
@@ -264,20 +280,36 @@ rl_sample() {  # $1=file $2=pct(raw int/float) $3=resets_at(raw)
   return 0
 }
 
-rl_latest() {  # $1=file → _LL_PCT _LL_RST (epoch)
+rl_latest() {  # $1=file $2=max secs ahead → _LL_PCT _LL_RST (epoch)
   _LL_PCT=""; _LL_RST=""
   rl_dir "$1"; [ -d "$_RLD" ] || return 0
   # ONE snapshot for both the max and the GC. A second listing could include an
   # entry added after `hi` was chosen, and the loop would rmdir that fresher (and
   # possibly higher) entry. Iterating the same snapshot means post-snapshot adds
   # are never deletion candidates, so a concurrent higher add is never lost.
-  local snap hi d
+  local snap hi d cut="" kept=""
+  # A store poisoned before this fix (a 2030 sentinel written by an old preview)
+  # would still pin every read: rl_latest picks the max reset and rmdirs the rest.
+  # So drop entries beyond now plus this window's ceiling ($2) on read too. That
+  # keeps the sentinel out of the high-water AND prunes it, so the store self-heals
+  # (#32). Guarded on NOW (and on $2 being supplied) so direct unit calls without a
+  # clock keep every entry. A real reset is never that far out, so a concurrent
+  # legitimate add is never a pruning candidate.
+  [ -z "${NOW:-}" ] || [ -z "${2:-}" ] || cut=$(( NOW + $2 ))
   snap=$(ls -1 "$_RLD" 2>/dev/null | grep '^[0-9]' | sort)
   [ -n "$snap" ] || return 0
-  hi=$(printf '%s\n' "$snap" | tail -n1)
+  for d in $snap; do
+    if [ -n "$cut" ] && [ "$(( 10#${d%_*} ))" -gt "$cut" ]; then
+      rmdir "$_RLD/$d" 2>/dev/null            # purge the poisoned sentinel entry
+    else
+      kept="${kept}${kept:+ }$d"
+    fi
+  done
+  [ -n "$kept" ] || return 0
+  hi="${kept##* }"             # kept is built in sorted order, so the last is the max
   _LL_RST=$(( 10#${hi%_*} ))   # 10# avoids the leading-zero octal trap on the reset
   _LL_PCT="${hi#*_}"           # keep as string so a fractional pct is preserved
-  for d in $snap; do
+  for d in $kept; do
     [ "$d" = "$hi" ] || rmdir "$_RLD/$d" 2>/dev/null
   done
 }
@@ -287,11 +319,15 @@ burn_eta_5h() {  # → _B5_STATE _B5_ETA _B5_RATE _B5_TTR ; trims $BURN_FILE
   [ -f "$BURN_FILE" ] || return 0
   local tmp="$BURN_FILE.$$.tmp" out
   out=$(awk -F'\t' -v now="$NOW" -v win="$CORALLINE_BURN_WINDOW" \
-            -v trim="$BURN_TRIM" -v tmp="$tmp" '
+            -v trim="$BURN_TRIM" -v tmp="$tmp" -v maxahead="$RL_MAX_5H" '
     $2 != "" {
-      e = $1 + 0
+      e = $1 + 0; r = $3 + 0
+      # Drop a row whose reset is implausibly far out (a 2030 sentinel from an old
+      # sample preview). Left in, it becomes the "current window" below and starves
+      # the real samples; dropping it on read self-heals a pre-fix poisoned file (#32).
+      if (r > now + maxahead) { dropped = 1; next }
       if (!(e in seen)) { ord[++n] = e; seen[e] = 1 }
-      pct[e] = $2 + 0; rst[e] = $3 + 0
+      pct[e] = $2 + 0; rst[e] = r
     }
     END {
       if (n == 0) { print "warming inf 0 0"; next_done = 1 }
@@ -347,8 +383,9 @@ burn_eta_5h() {  # → _B5_STATE _B5_ETA _B5_RATE _B5_TTR ; trims $BURN_FILE
         # bursts (resize storms) append same-second rows that n dedups away, so an
         # n-based cap would never fire and the file would grow unbounded. The
         # rewrite emits the deduped last-`trim` seconds, so it also collapses the
-        # burst rows. Fires only when the file actually exceeds the cap.
-        if (NR > trim) {
+        # burst rows. Fires when the file exceeds the cap, or when a sentinel row
+        # was dropped above, so the poisoned row is purged from the file too (#32).
+        if (NR > trim || dropped) {
           lo = n - trim + 1; if (lo < 1) lo = 1
           for (i = lo; i <= n; i++)
             printf "%d\t%s\t%d\n", ord[i], pct[ord[i]], rst[ord[i]] > tmp
@@ -389,7 +426,7 @@ burn_estimate() {  # → _BURN_STATE _BURN_LABEL _BURN_ETA _BURN_RATE _BURN_TTR
   # limit-sync is on, project from the same synced value the limit7d segment shows
   # so burn and limit7d cannot contradict each other on a stale local snapshot.
   if [ "$VL_LIMIT_SYNC" = "1" ]; then
-    rl_latest "$RL7D_FILE"
+    rl_latest "$RL7D_FILE" "$RL_MAX_7D"
     if [ -n "$_LL_PCT" ]; then burn_eta_7d "$_LL_PCT" "$_LL_RST"; else burn_eta_7d; fi
   else
     burn_eta_7d
@@ -649,14 +686,14 @@ seg_limit() {  # $1=label $2=pct $3=resets_at $4=bg
 seg_limit5h() {
   local p="$fh_pct" r="$fh_rst"
   if [ "$VL_LIMIT_SYNC" = "1" ]; then
-    rl_latest "$RL5H_FILE"; [ -n "$_LL_PCT" ] && { p="$_LL_PCT"; r="$_LL_RST"; }
+    rl_latest "$RL5H_FILE" "$RL_MAX_5H"; [ -n "$_LL_PCT" ] && { p="$_LL_PCT"; r="$_LL_RST"; }
   fi
   seg_limit "5h" "$p" "$r" "$VL_BG_5H"
 }
 seg_limit7d() {
   local p="$wd_pct" r="$wd_rst"
   if [ "$VL_LIMIT_SYNC" = "1" ]; then
-    rl_latest "$RL7D_FILE"; [ -n "$_LL_PCT" ] && { p="$_LL_PCT"; r="$_LL_RST"; }
+    rl_latest "$RL7D_FILE" "$RL_MAX_7D"; [ -n "$_LL_PCT" ] && { p="$_LL_PCT"; r="$_LL_RST"; }
   fi
   seg_limit "7d" "$p" "$r" "$VL_BG_7D"
 }
@@ -771,14 +808,21 @@ term_cols() {  # → _COLS
 # single source of truth, so enabling burn in configure.sh just works. _SEG_SCAN
 # also covers VL_FLOAT_SEGMENTS, so burn samples even when it's only in the float
 # readout (mirrors how read_git is gated above).
-case "$_SEG_SCAN" in *" burn "*) burn_sample "$NOW" "$fh_pct" "$fh_rst" ;; esac
-# limit-sync records to its own high-water store (separate from the burn file),
-# only for the limit segment that is actually shown.
-if [ "$VL_LIMIT_SYNC" = "1" ]; then
-  case "$_SEG_SCAN" in *" limit5h "*) rl_sample "$RL5H_FILE" "$fh_pct" "$fh_rst" ;; esac
-  # burn also consumes the synced 7d (below), so sample it whenever burn shows too,
-  # otherwise burn would read a stale/older synced 7d instead of this render's value.
-  case "$_SEG_SCAN" in *" limit7d "*|*" burn "*) rl_sample "$RL7D_FILE" "$wd_pct" "$wd_rst" ;; esac
+#
+# CORALLINE_NO_SAMPLE=1 makes a render read-only: it skips every write to the
+# cross-session stores. A preview/verification render (sample-input.json carries
+# a year-2030 sentinel reset) would otherwise win the high-water forever and prune
+# the real entries, so the documented preview commands set this flag (see #32).
+if [ "${CORALLINE_NO_SAMPLE:-0}" != 1 ]; then
+  case "$_SEG_SCAN" in *" burn "*) burn_sample "$NOW" "$fh_pct" "$fh_rst" ;; esac
+  # limit-sync records to its own high-water store (separate from the burn file),
+  # only for the limit segment that is actually shown.
+  if [ "$VL_LIMIT_SYNC" = "1" ]; then
+    case "$_SEG_SCAN" in *" limit5h "*) rl_sample "$RL5H_FILE" "$fh_pct" "$fh_rst" "$RL_MAX_5H" ;; esac
+    # burn also consumes the synced 7d (below), so sample it whenever burn shows too,
+    # otherwise burn would read a stale/older synced 7d instead of this render's value.
+    case "$_SEG_SCAN" in *" limit7d "*|*" burn "*) rl_sample "$RL7D_FILE" "$wd_pct" "$wd_rst" "$RL_MAX_7D" ;; esac
+  fi
 fi
 case "$_SEG_SCAN" in *" burn "*) burn_estimate ;; esac
 

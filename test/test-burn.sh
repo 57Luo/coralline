@@ -17,6 +17,9 @@ eval "$(sed -n '/^to_epoch() {/,/^}/p'     "$SCRIPT")"
 eval "$(sed -n '/^fmt_eta() {/,/^}/p'       "$SCRIPT")"
 eval "$(sed -n '/^burn_sample() {/,/^}/p'   "$SCRIPT")"
 
+# Per-window sentinel ceilings the samplers reference (mirrors statusline.sh; #32).
+RL_MAX_5H=$(( 6 * 3600 )); RL_MAX_7D=$(( 8 * 86400 ))
+
 # fmt_eta
 fmt_eta 0;       eq "fmt_eta 0m"     "$_ETA" "0m"
 fmt_eta 2820;    eq "fmt_eta 47m"    "$_ETA" "47m"
@@ -85,6 +88,38 @@ rl_sample "$RLF" 12 2000
 eq "rl legacy flat-file removed" "$([ -e "$TMPD/limit.tsv" ] && echo present || echo gone)" "gone"
 eq "rl dir-set created"          "$([ -d "$TMPD/limit.d" ]  && echo yes || echo no)" "yes"
 
+# sentinel guard (#32): a far-future reset (e.g. sample-input.json's year-2030
+# preview value) must be dropped when NOW is known, so a preview render can never
+# win the high-water and prune the real window. NOW is set for these cases only.
+RLS="$TMPD/limit-sentinel.tsv"; NOW=1781794590
+rl_sample "$RLS" 30 1781811000 "$RL_MAX_5H"           # real ~4.5h window: kept
+rl_sample "$RLS" 99 1893490200 "$RL_MAX_5H"           # 2030 sentinel: dropped
+rl_latest "$RLS" "$RL_MAX_5H"
+eq "rl_sample drops sentinel pct" "$_LL_PCT" "030.000"
+eq "rl_sample drops sentinel rst" "$_LL_RST" "1781811000"
+# per-window ceiling: a 5h reset days out is corrupt (a 5h window resets within
+# hours), but the same offset is valid for the 7d window. The ceiling is the caller's.
+RLW="$TMPD/limit-window.tsv"; twodays=$(( NOW + 2*86400 ))
+rl_sample "$RLW" 20 "$twodays" "$RL_MAX_5H"           # 2d out under 5h ceiling: dropped
+rl_latest "$RLW" "$RL_MAX_5H"; eq "rl 5h ceiling drops 2d reset" "$_LL_PCT" ""
+rl_sample "$RLW" 20 "$twodays" "$RL_MAX_7D"           # 2d out under 7d ceiling: kept
+rl_latest "$RLW" "$RL_MAX_7D"; eq "rl 7d ceiling keeps 2d reset" "$_LL_PCT" "020.000"
+# read-side heal: a store poisoned BEFORE this fix already holds the sentinel entry.
+# On read rl_latest must ignore it for the high-water AND rmdir it, so the next real
+# render recovers instead of staying pinned.
+RLH="$TMPD/limit-heal.tsv"; rl_dir "$RLH"; mkdir -p "$_RLD"
+mkdir "$_RLD/1781811000_030.000" "$_RLD/1893490200_099.000"   # real entry + 2030 sentinel
+rl_latest "$RLH" "$RL_MAX_5H"
+eq "rl_latest heals poisoned pct"  "$_LL_PCT" "030.000"
+eq "rl_latest heals poisoned rst"  "$_LL_RST" "1781811000"
+eq "rl_latest prunes sentinel dir" "$([ -d "$_RLD/1893490200_099.000" ] && echo present || echo gone)" "gone"
+# burn_sample applies the 5h bound, keyed off its own now ($1)
+BURN_FILE="$TMPD/burn-sentinel.tsv"
+burn_sample 1781794590 50 1781811000                  # real window: appended
+burn_sample 1781794590 99 1893490200                  # 2030 sentinel: dropped
+eq "burn_sample drops sentinel" "$([ -f "$BURN_FILE" ] && wc -l < "$BURN_FILE" | tr -d ' ' || echo 0)" "1"
+NOW=""
+
 # helper: write a fixture and run the estimator at a given "now"
 run5h() { BURN_FILE="$TMPD/b5.tsv"; printf '%b' "$1" > "$BURN_FILE"; NOW="$2"; burn_eta_5h; }
 
@@ -95,6 +130,14 @@ run5h "1000000\t6\t1015900\n1000060\t7\t1015900\n1000300\t8\t1015900\n1000360\t8
 eq "5h active state" "$_B5_STATE" "active"
 eq "5h active eta"   "$_B5_ETA"   "22080"
 eq "5h ttr"          "$_B5_TTR"   "15540"
+
+# read-side heal: a burn file poisoned before this fix holds a far-future reset row.
+# burn_eta_5h must ignore it (fit the real window, not stay warming) and purge it,
+# so the same active fit lands and the sentinel row is gone from the file.
+run5h "1000000\t6\t1015900\n1000060\t7\t1015900\n1000300\t8\t1015900\n1000360\t8\t1015900\n9999000\t41\t99999999\n" 1000360
+eq "burn read ignores sentinel state" "$_B5_STATE" "active"
+eq "burn read ignores sentinel eta"   "$_B5_ETA"   "22080"
+eq "burn read purges sentinel" "$(grep -c 99999999 "$TMPD/b5.tsv" | tr -d ' ')" "0"
 
 # idle: only crossing is older than the 600s window (at +0s); now=+1200s
 run5h "1000000\t6\t1015900\n1000010\t7\t1015900\n1001200\t7\t1015900\n" 1001200
@@ -116,35 +159,35 @@ eq "5h empty state" "$_B5_STATE" "warming"
 eq "5h empty eta"   "$_B5_ETA"   "inf"
 
 # cross-window isolation: a shared file where an idle session's stale snapshots
-# (50,51 / older reset 1500000) are interleaved with the current window
-# (6,7,8 / later reset 2000000). The estimate must use ONLY the current window —
+# (50,51 / older reset 1010000) are interleaved with the current window
+# (6,7,8 / later reset 1015900). The estimate must use ONLY the current window —
 # pre-fix the mixed series mis-fit; now it fits the real 6→7→8 slope.
 # crossings (current window): (1000120,7),(1000300,8) → rate=1/180 %/s
 # now pct=8 → ETA=(100-8)*180=16560s
-run5h "1000000\t6\t2000000\n1000060\t50\t1500000\n1000120\t7\t2000000\n1000180\t51\t1500000\n1000300\t8\t2000000\n1000360\t8\t2000000\n" 1000360
+run5h "1000000\t6\t1015900\n1000060\t50\t1010000\n1000120\t7\t1015900\n1000180\t51\t1010000\n1000300\t8\t1015900\n1000360\t8\t1015900\n" 1000360
 eq "5h cross-window state" "$_B5_STATE" "active"
 eq "5h cross-window eta"   "$_B5_ETA"   "16560"
-eq "5h cross-window ttr"   "$_B5_TTR"   "999640"
+eq "5h cross-window ttr"   "$_B5_TTR"   "15540"
 
 # same-window jitter: concurrent sessions' caches disagree by a point or two, so
 # pct dips mid-window (13→12) though usage only ever rises. A decrease used to
 # reset `start` to the tail and fit the slope over the last 1-2 samples (1s apart)
 # → bogus ~1m ETA. Now the fit is anchored at the window start and spans the
 # first→last crossing: (1000150,11)→(1000400,16) = 5%/250s, lp=16 → ETA=84/0.02=4200.
-run5h "1000050\t10\t2000000\n1000150\t11\t2000000\n1000380\t13\t2000000\n1000398\t12\t2000000\n1000399\t14\t2000000\n1000400\t16\t2000000\n" 1000400
+run5h "1000050\t10\t1015900\n1000150\t11\t1015900\n1000380\t13\t1015900\n1000398\t12\t1015900\n1000399\t14\t1015900\n1000400\t16\t1015900\n" 1000400
 eq "5h jitter state" "$_B5_STATE" "active"
 eq "5h jitter eta"   "$_B5_ETA"   "4200"
-eq "5h jitter ttr"   "$_B5_TTR"   "999600"
+eq "5h jitter ttr"   "$_B5_TTR"   "15500"
 
 # min-span guard: a tiny late burst (two crossings 2s apart, nothing earlier in
 # window) is too short to trust → warming, not a wild fast ETA.
-run5h "1000000\t9\t2000000\n1000398\t10\t2000000\n1000400\t11\t2000000\n" 1000400
+run5h "1000000\t9\t1015900\n1000398\t10\t1015900\n1000400\t11\t1015900\n" 1000400
 eq "5h short-span guard" "$_B5_STATE" "warming"
 
 # but a genuine fast burn that spans more than the guard (win/10=60s) must show,
 # not be hidden as warming: 1→5→9→10 over 90s. fc=(1000010,5) lc=(1000100,10),
 # span=90s ≥ 60s → rate=5/90, lp=10 → ETA=90/(5/90)=1620.
-run5h "1000000\t1\t2000000\n1000010\t5\t2000000\n1000070\t9\t2000000\n1000100\t10\t2000000\n" 1000100
+run5h "1000000\t1\t1015900\n1000010\t5\t1015900\n1000070\t9\t1015900\n1000100\t10\t1015900\n" 1000100
 eq "5h fast-burn shows state" "$_B5_STATE" "active"
 eq "5h fast-burn shows eta"   "$_B5_ETA"   "1620"
 
@@ -298,11 +341,18 @@ eq "neither-reported renders nothing" "${#SEG_TXT[@]}" "0"
 # Drives the whole statusline.sh so the top-level gate is exercised end to end.
 if command -v jq >/dev/null 2>&1; then
   gate_run() {  # $1=VL_SEGMENTS → "written" if a sample landed, else "absent"
-    local conf="$TMPD/conf.sh" bf="$TMPD/gate/burn.tsv"
+    local conf="$TMPD/conf.sh" bf="$TMPD/gate/burn.tsv" in="$TMPD/gate-input.json" soon
     rm -rf "$TMPD/gate"
     printf 'VL_SEGMENTS=%q\n' "$1" > "$conf"
+    # Give the fixture a plausible near-future reset (raw epoch; to_epoch accepts
+    # it) so the sentinel guard (#32) doesn't correctly drop the sample and mask
+    # the gate under test. The bundled sample-input.json keeps its 2030 sentinel.
+    soon=$(( $(date +%s) + 10800 ))
+    jq --arg r "$soon" \
+       '.rate_limits.five_hour.resets_at=$r | .rate_limits.seven_day.resets_at=$r' \
+       "$HERE/sample-input.json" > "$in"
     CORALLINE_CONFIG="$conf" CORALLINE_BURN_FILE="$bf" \
-      bash "$SCRIPT" < "$HERE/sample-input.json" >/dev/null 2>&1
+      bash "$SCRIPT" < "$in" >/dev/null 2>&1
     [ -f "$bf" ] && echo written || echo absent
   }
   eq "gate: burn listed → samples"    "$(gate_run 'dir burn clock')" "written"
