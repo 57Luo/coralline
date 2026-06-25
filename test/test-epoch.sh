@@ -25,17 +25,26 @@ ref_epoch() {
 }
 
 fail=0
-iso() {  # $1=ISO timestamp — assert to_epoch matches the system date
-  to_epoch "$1"; local got="$_EP" want; want=$(ref_epoch "$1")
-  if [ "$got" = "$want" ]; then
-    printf 'ok    %-30s %s\n' "$1" "$got"
+# Assert to_epoch matches the old date-based implementation exactly, in both the
+# result AND the return code. This proves the fork-free fast path and its
+# fallbacks are byte-for-byte equivalent to the date calls they replaced, for
+# valid, offset, reduced-precision, and impossible inputs alike.
+iso() {  # $1=ISO timestamp
+  local got grc want wrc
+  to_epoch "$1"; grc=$?; got="$_EP"      # capture rc BEFORE any other command
+  want=$(ref_epoch "$1"); wrc=$?
+  if [ "$grc" != 0 ] && [ "$wrc" != 0 ]; then
+    printf 'ok    %-32s <both reject>\n' "$1"; return  # parity: both decline
+  fi
+  if [ "$grc" = "$wrc" ] && [ "$got" = "$want" ]; then
+    printf 'ok    %-32s %s\n' "$1" "$got"
   else
-    printf 'FAIL  %-30s want=%s got=%s\n' "$1" "$want" "$got"; fail=1
+    printf 'FAIL  %-32s want=%s(rc%s) got=%s(rc%s)\n' "$1" "$want" "$wrc" "$got" "$grc"; fail=1
   fi
 }
 
-# Spread: epoch boundary, leap years, century non-leap, month edges, far future,
-# the 32-bit boundary, fractional seconds, and an explicit +00:00 offset.
+# Fast-path shapes: epoch boundary, leap years, century non-leap, month edges,
+# far future, the 32-bit boundary, fractional seconds.
 iso 1970-01-01T00:00:00Z
 iso 1999-12-31T23:59:59Z
 iso 2000-01-01T00:00:00Z
@@ -50,7 +59,15 @@ iso 2038-01-19T03:14:07Z
 iso 2099-12-31T23:59:59Z
 iso 2100-03-01T00:00:00Z
 iso 2026-06-24T15:20:00.123456Z
+# Fallback shapes (must match the date path, not the fast path): tz offsets,
+# fraction+offset, minute precision (no seconds), and impossible dates/times.
 iso 2026-06-24T15:20:00+00:00
+iso 2026-06-24T15:20:00+02:00
+iso 2026-06-24T15:20:00-05:00
+iso 2026-06-24T15:20:00.5+02:00
+iso 2026-06-24T15:20Z
+iso 2026-02-31T00:00:00Z
+iso 2026-01-01T24:00:00Z
 
 chk() { [ "$2" = "$3" ] && printf 'ok    %s\n' "$1" || { printf 'FAIL  %s want=%s got=%s\n' "$1" "$3" "$2"; fail=1; }; }
 
