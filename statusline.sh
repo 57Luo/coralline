@@ -20,6 +20,15 @@ read -t 5 -r -d '' input || true
 # ── Defaults (every value can be overridden by the config file) ──────────────
 VL_STYLE="pill"                 # pill: powerline pills · lean: p10k-lean flat text
 VL_LEAN_SEP=""                  # lean only — extra text between segments, e.g. "·"
+VL_LEAN_BG=""                   # lean only — one uniform background behind the whole
+                                # row ("R,G,B" or a 256 index); empty = none. Gives the
+                                # p10k "classic" look: a dark bar with colored text.
+VL_LEAN_CAP_R=""                # lean only — trailing cap glyph drawn in the VL_LEAN_BG
+                                # colour to bevel the bar into the terminal (p10k's end
+                                # separator, e.g. $''); needs VL_LEAN_BG, empty = flat
+VL_LEAN_CAP_L=""                # lean only — leading cap glyph: the left-facing
+                                # mirror of VL_LEAN_CAP_R at the bar's start; needs
+                                # VL_LEAN_BG, empty = flat (stock p10k classic: flat)
 VL_LAYOUT="fixed"               # fixed: one line per VL_SEGMENTS* var
                                 # auto:  single line, wraps when the window is narrow
 VL_MAX_LINES=3                  # auto only — wrap into at most this many lines
@@ -115,8 +124,9 @@ if [ "$VL_ASCII" = "1" ]; then
   VL_NODE_GLYPH="node" ; VL_PY_GLYPH="py"
 fi
 
-# Lean style: no backgrounds or caps; each segment's VL_BG_* becomes its text
-# accent color (an empty VL_FG_TEXT lets text inherit that accent).
+# Lean style: no caps and no per-segment pills; each segment's VL_BG_* becomes its
+# text accent color (an empty VL_FG_TEXT lets text inherit that accent). VL_LEAN_BG
+# can still paint one uniform background behind the row (the p10k "classic" look).
 if [ "$VL_STYLE" = "lean" ]; then
   VL_CAP_L="" ; VL_CAP_R=""
   VL_FG_TEXT="${VL_LEAN_FG:-}"
@@ -879,14 +889,27 @@ build_segments() {
 }
 
 print_range() {  # render segments $1..$2 (inclusive) as one row
-  local i out
+  local i out lbg=""
   if [ "$VL_STYLE" = "lean" ]; then
+    # VL_LEAN_BG paints one uniform background behind the row; re-assert it after
+    # every reset so the bar stays continuous across separators (p10k "classic").
+    [ -n "${VL_LEAN_BG:-}" ] && { bg "$VL_LEAN_BG"; lbg="$_BG"; }
     out=""
+    # VL_LEAN_CAP_L bevels the bar's start into the terminal — the mirror of
+    # VL_LEAN_CAP_R — drawn in the bar colour on the default background.
+    if [ -n "$lbg" ] && [ -n "${VL_LEAN_CAP_L:-}" ]; then
+      fg "$VL_LEAN_BG"; out="${R}${_FG}${VL_LEAN_CAP_L}"
+    fi
     for ((i=$1; i<=$2; i++)); do
       fg "${SEG_BGS[$i]}"
-      out+="${R}${_FG}${SEG_TXT[$i]}"
-      [ "$i" -lt "$2" ] && out+="${R}${VL_LEAN_SEP}"
+      out+="${R}${lbg}${_FG}${SEG_TXT[$i]}"
+      [ "$i" -lt "$2" ] && out+="${R}${lbg}${VL_LEAN_SEP}"
     done
+    # VL_LEAN_CAP_R bevels the bar's end into the terminal (p10k's trailing segment
+    # separator): the cap glyph is drawn in the bar colour on the default background.
+    if [ -n "$lbg" ] && [ -n "${VL_LEAN_CAP_R:-}" ]; then
+      fg "$VL_LEAN_BG"; out+="${R}${_FG}${VL_LEAN_CAP_R}"
+    fi
     printf '%s\n' "${out}${R}"
     return 0
   fi

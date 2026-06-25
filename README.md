@@ -253,6 +253,9 @@ Prefer Powerlevel10k's *lean* look — no backgrounds, just colored text? Set
 | `VL_STYLE` | `pill` | set to `lean` for the flat look |
 | `VL_LEAN_SEP` | _(empty)_ | extra text between segments, e.g. `·` |
 | `VL_LEAN_FG` | _(empty)_ | force a text color; empty = inherit each segment's accent |
+| `VL_LEAN_BG` | _(empty)_ | one uniform background behind the row — `"R,G,B"` or 256 index; gives the p10k *classic* look (dark bar + colored text) |
+| `VL_LEAN_CAP_R` | _(empty)_ | trailing cap glyph drawn in the `VL_LEAN_BG` color to bevel the bar's end into the terminal (p10k's end separator, e.g. `$''`); needs `VL_LEAN_BG` |
+| `VL_LEAN_CAP_L` | _(empty)_ | leading cap glyph — the left-facing mirror of `VL_LEAN_CAP_R` at the bar's start (e.g. `$''`); needs `VL_LEAN_BG`. Stock p10k *classic* leaves it flat |
 
 > **Tip:** already a p10k user? Tell the AI installer or the visual wizard to import your
 > `~/.p10k.zsh` — it will carry over your style, colors, and time format after you opt in.
