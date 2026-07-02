@@ -90,8 +90,8 @@ VL_BG_LINES=240
 VL_BG_STYLE=96
 VL_BG_DURATION=60
 VL_BG_EFFORT=141
-VL_BG_NODE=99                   # optional `node` segment background (purple)
-VL_BG_PYTHON=178                # optional `python` segment background (yellow/gold)
+VL_BG_NODE=""                   # optional; falls back to VL_BG_MODEL when empty
+VL_BG_PYTHON=""                 # optional; falls back to VL_BG_MODEL when empty
 printf -v VL_NODE_GLYPH '\xee\x9c\x98'   # U+E718 Nerd Font node glyph (word in VL_ASCII)
 printf -v VL_PY_GLYPH   '\xee\x9c\xbc'   # U+E73C Nerd Font python glyph (word in VL_ASCII)
 VL_RUNTIME_PROBE=0              # node/python: 1 = also detect via `node`/`python3`
@@ -823,14 +823,14 @@ seg_node() {  # active Node version (.nvmrc/.node-version/nvm); silent when none
   [ -n "$cwd" ] || return 0
   runtime_node "$cwd"; [ -n "$_RT" ] || return 0
   fg "$VL_FG_TEXT"
-  push "$VL_BG_NODE" "${_FG} ${VL_NODE_GLYPH} ${_RT} "
+  push "${VL_BG_NODE:-$VL_BG_MODEL}" "${_FG} ${VL_NODE_GLYPH} ${_RT} "
 }
 
 seg_python() {  # active Python env (venv/conda/pyenv); silent when none detected
   [ -n "$cwd" ] || return 0
   runtime_python "$cwd"; [ -n "$_RT" ] || return 0
   fg "$VL_FG_TEXT"
-  push "$VL_BG_PYTHON" "${_FG} ${VL_PY_GLYPH} ${_RT} "
+  push "${VL_BG_PYTHON:-$VL_BG_MODEL}" "${_FG} ${VL_PY_GLYPH} ${_RT} "
 }
 
 # ── Render ───────────────────────────────────────────────────────────────────
