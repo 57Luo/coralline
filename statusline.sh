@@ -180,6 +180,19 @@ $(printf '%s' "$input" | jq -r '[
 ] | map(tostring) | join("")' 2>/dev/null)
 JSON
 
+# ── Usage snapshot for hooks (VL_USAGE_STATE=1) ──────────────────────────────
+# Persist whitelisted rate-limit fields so external tooling (e.g. Stop hooks
+# that remind a handoff before the 5h window exhausts) can read usage without
+# re-parsing statusline stdin. Atomic temp+rename; whitelisted fields only —
+# never auth or conversation data. Off by default.
+if [ "${VL_USAGE_STATE:-0}" = "1" ] && [ -n "$fh_pct" ]; then
+  _US_FILE="${VL_USAGE_STATE_FILE:-$HOME/.claude/usage-state.json}"
+  _US_TMP="${_US_FILE}.tmp.$$"
+  printf '{"source":"coralline","updated_at":%s,"model":"%s","five_hour":{"used_percentage":%s,"resets_at":"%s"},"seven_day":{"used_percentage":%s,"resets_at":"%s"}}\n' \
+    "$NOW" "$model" "${fh_pct:-0}" "$fh_rst" "${wd_pct:-0}" "$wd_rst" \
+    > "$_US_TMP" 2>/dev/null && mv -f "$_US_TMP" "$_US_FILE" 2>/dev/null
+fi
+
 # ── ANSI primitives ──────────────────────────────────────────────────────────
 R=$'\033[0m'
 BOLD=$'\033[1m'
