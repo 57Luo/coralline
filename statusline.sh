@@ -727,18 +727,32 @@ seg_model() {  # active Claude model
   push "$VL_BG_MODEL" "${BOLD}${_FG} ◆ ${model#Claude } ${NORM}"
 }
 
-seg_ctx() {  # context-window gauge with input/output/cache token counts
+seg_ctx() {  # context-window gauge; VL_CTX_TOKENS=1 appends inline token counts
   [ -n "$ctx_pct" ] || return 0
-  local ci fgc fgd ti to tcr tcw
+  local ci fgc fgd ti to tcr tcw detail=""
   printf -v ci '%.0f' "$ctx_pct" 2>/dev/null || ci=0
   make_bar "$ci"; pct_fg "$ci"
   fg "$_PFG";       fgc="$_FG"
+  if [ "${VL_CTX_TOKENS:-1}" = "1" ]; then
+    fg "$VL_FG_DIM";  fgd="$_FG"
+    fmt_tok "$tok_in"; ti="$_TOK"
+    fmt_tok "$tok_out"; to="$_TOK"
+    fmt_tok "$tok_cr"; tcr="$_TOK"
+    fmt_tok "$tok_cw"; tcw="$_TOK"
+    detail="${fgd}↑${ti} ↓${to} cr:${tcr} cw:${tcw} "
+  fi
+  push "$VL_BG_CTX" "${fgc} ⬡ ${_BAR} ${ci}% ${detail}"
+}
+
+seg_tokens() {  # standalone input/output/cache token counts
+  [ -n "$ctx_pct" ] || return 0
+  local fgd ti to tcr tcw
   fg "$VL_FG_DIM";  fgd="$_FG"
   fmt_tok "$tok_in"; ti="$_TOK"
   fmt_tok "$tok_out"; to="$_TOK"
   fmt_tok "$tok_cr"; tcr="$_TOK"
   fmt_tok "$tok_cw"; tcw="$_TOK"
-  push "$VL_BG_CTX" "${fgc} ⬡ ${_BAR} ${ci}% ${fgd}↑${ti} ↓${to} cr:${tcr} cw:${tcw} "
+  push "${VL_BG_TOKENS:-$VL_BG_CTX}" "${fgd} ↑${ti} ↓${to} cr:${tcr} cw:${tcw} "
 }
 
 seg_limit() {  # $1=label $2=pct $3=resets_at $4=bg
@@ -748,7 +762,7 @@ seg_limit() {  # $1=label $2=pct $3=resets_at $4=bg
   make_bar "$v"; pct_fg "$v"
   fg "$_PFG"; fgc="$_FG"
   fmt_countdown "$3"
-  if [ -n "$_CD" ]; then fg "$VL_FG_DIM"; rst="${_FG}↺${_CD}"; fi
+  if [ -n "$_CD" ]; then fg "$VL_FG_DIM"; rst="${_FG}↺ ${_CD}"; fi
   push "$4" "${fgc} $1 ${_BAR} ${v}% ${rst} "
 }
 # With VL_LIMIT_SYNC, show the freshest cross-session value for the current
