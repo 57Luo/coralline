@@ -68,7 +68,7 @@ curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.s
 ```
 
 互動執行時會詢問要裝哪個版本 —— 最新的 release tag（建議）或 `main`（最新開發版）。
-想略過詢問就用 `--ref` 直接指定，例如 `... | bash -s -- --ref v0.6.0` 或 `--ref main`。
+想略過詢問就用 `--ref` 直接指定，例如 `... | bash -s -- --ref v0.9.1` 或 `--ref main`。
 
 ### 手動安裝
 
@@ -130,7 +130,7 @@ curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.s
 - **先讀會執行的東西。** 全部都在這個 repo 裡：[install.sh](./install.sh)（約 270 行）
   只做複製檔案和合併一個 `statusLine` key 到 `settings.json`；[INSTALL.md](./INSTALL.md)
   是 AI 遵循的 playbook。讓你的 Claude 先讀完這兩份再請求核可，這是預期流程。
-- **釘選版本。** `... | bash -s -- --ref v0.6.0` 安裝打過 tag 的 release 而非 `main`，
+- **釘選版本。** `... | bash -s -- --ref v0.9.1` 安裝打過 tag 的 release 而非 `main`，
   你審過的就是你跑的。互動式安裝本來就預設建議最新 tag。
 - **確切會寫入什麼：** `~/.claude/coralline/` 底下的檔案、你的選擇存在
   `~/.claude/coralline.conf`、以及合併進 `~/.claude/settings.json` 的一個 `statusLine`

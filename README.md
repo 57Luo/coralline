@@ -71,7 +71,7 @@ curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.s
 
 When run interactively it asks which version to install — the latest tagged release
 (recommended) or `main` (latest development). To skip the prompt, pin one explicitly with
-`--ref`, e.g. `... | bash -s -- --ref v0.6.0` or `--ref main`.
+`--ref`, e.g. `... | bash -s -- --ref v0.9.1` or `--ref main`.
 
 ### Manual
 
@@ -139,7 +139,7 @@ that skepticism is inspection, not trust:
   lines) copies files and merges one `statusLine` key into `settings.json`, and
   [INSTALL.md](./INSTALL.md) is the playbook the AI follows. Have your Claude read both
   before approving anything; that is the intended flow.
-- **Pin a release.** `... | bash -s -- --ref v0.6.0` installs a tagged release instead of
+- **Pin a release.** `... | bash -s -- --ref v0.9.1` installs a tagged release instead of
   `main`, so what you audited is what you run. The interactive installer already offers the
   latest tag by default.
 - **What gets written, exactly:** files under `~/.claude/coralline/`, your choices in
