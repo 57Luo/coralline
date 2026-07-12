@@ -51,7 +51,9 @@ VL_ASCII=0                      # 1 = no Nerd Font glyphs (plain colored blocks)
 VL_FLOAT=0                      # 1 = also write a plain-text readout to VL_FLOAT_FILE (bring your own carrier)
 VL_FLOAT_SEGMENTS="model ctx cost"  # segments rendered into the float line (plain text: keep color-driven limit warnings inline)
 VL_FLOAT_SEP="  ·  "            # separator between float segments (plain text, no color)
-VL_FLOAT_FILE="$HOME/.claude/coralline/float.txt"
+_VL_DIR="${0%/*}"
+_VL_CONFIG_DIR="${_VL_DIR%/*}"
+VL_FLOAT_FILE="$_VL_DIR/float.txt"
 VL_NOCOLOR=0                    # internal: fg()/bg() emit nothing when 1 (plain-text path)
 
 # ── Burn-rate segment (range-to-empty) ───────────────────────────────────────
@@ -59,7 +61,7 @@ VL_NOCOLOR=0                    # internal: fg()/bg() emit nothing when 1 (plain
 CORALLINE_BURN_WINDOW=600       # recent-slope lookback for 5h, seconds
 VL_BURN_GLYPH="↗"               # plain-Unicode, arrow family (kept in VL_ASCII)
 VL_BG_BURN=""                   # empty → inherits VL_BG_5H at the use site
-BURN_FILE="${CORALLINE_BURN_FILE:-$HOME/.claude/coralline/burn-5h.tsv}"
+BURN_FILE="${CORALLINE_BURN_FILE:-$_VL_DIR/burn-5h.tsv}"
 BURN_TRIM=1500                  # internal: max rows kept in the sample file
 
 # Cross-session limit sync (opt-in). Claude Code only re-renders a session's
@@ -71,8 +73,8 @@ BURN_TRIM=1500                  # internal: max rows kept in the sample file
 # refresh a session that is not redrawing at all (that is a Claude Code limit).
 # The store is a directory-set (see rl_sample/rl_latest), race-free by design.
 VL_LIMIT_SYNC=0
-RL5H_FILE="${CORALLINE_RL5H_FILE:-$HOME/.claude/coralline/limit-5h.tsv}"
-RL7D_FILE="${CORALLINE_RL7D_FILE:-$HOME/.claude/coralline/limit-7d.tsv}"
+RL5H_FILE="${CORALLINE_RL5H_FILE:-$_VL_DIR/limit-5h.tsv}"
+RL7D_FILE="${CORALLINE_RL7D_FILE:-$_VL_DIR/limit-7d.tsv}"
 # Per-window ceilings for the sentinel guard (#32): a reset further out than its
 # window can possibly be is corrupt (e.g. sample-input.json's 2030 value) and must
 # never become the high-water. Kept per window because a stale 5h value a couple of
@@ -118,7 +120,7 @@ VL_FG_WARN=179
 VL_FG_HOT=167
 
 # ── Load user config ─────────────────────────────────────────────────────────
-VL_CONF="${CORALLINE_CONFIG:-$HOME/.claude/coralline.conf}"
+VL_CONF="${CORALLINE_CONFIG:-$_VL_CONFIG_DIR/coralline.conf}"
 [ -f "$VL_CONF" ] && . "$VL_CONF"
 
 if [ "$VL_ASCII" = "1" ]; then
@@ -186,11 +188,15 @@ JSON
 # re-parsing statusline stdin. Atomic temp+rename; whitelisted fields only —
 # never auth or conversation data. Off by default.
 if [ "${VL_USAGE_STATE:-0}" = "1" ] && [ -n "$fh_pct" ]; then
-  _US_FILE="${VL_USAGE_STATE_FILE:-$HOME/.claude/usage-state.json}"
+  _US_FILE="${VL_USAGE_STATE_FILE:-$_VL_CONFIG_DIR/usage-state.json}"
   _US_TMP="${_US_FILE}.tmp.$$"
   printf '{"source":"coralline","updated_at":%s,"model":"%s","five_hour":{"used_percentage":%s,"resets_at":"%s"},"seven_day":{"used_percentage":%s,"resets_at":"%s"}}\n' \
     "$NOW" "$model" "${fh_pct:-0}" "$fh_rst" "${wd_pct:-0}" "$wd_rst" \
-    > "$_US_TMP" 2>/dev/null && mv -f "$_US_TMP" "$_US_FILE" 2>/dev/null
+    > "$_US_TMP" 2>/dev/null && mv -f "$_US_TMP" "$_US_FILE" 2>/dev/null || rm -f "$_US_TMP" 2>/dev/null
+  for _usf in "${_US_FILE}.tmp."*; do        # sweep tmps orphaned by dead sessions
+    [ -e "$_usf" ] || break
+    [ "$_usf" = "$_US_TMP" ] || rm -f "$_usf" 2>/dev/null
+  done
 fi
 
 # ── ANSI primitives ──────────────────────────────────────────────────────────

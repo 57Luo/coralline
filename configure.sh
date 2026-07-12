@@ -70,6 +70,10 @@ Options:
   --import-p10k
                Import ~/.p10k.zsh without opening the setup menu.
   --wizard     Open the visual wizard directly.
+  --profile=DIR
+               Operate on the Claude profile at DIR (e.g. ~/.claude-personal):
+               sets the coralline dir, coralline.conf, and settings.json paths.
+               Defaults to ~/.claude.
   --help       Show this help.
 EOF
 }
@@ -596,7 +600,7 @@ write_candidate_config() {
   theme_dir=$(runtime_theme_dir)
   {
     printf '# coralline config\n'
-    printf '. %s\n\n' "$(shell_quote "$theme_dir/$theme.conf")"
+    printf '. "$_VL_DIR/themes/%s.conf"\n\n' "$theme"
     write_assign VL_STYLE "$style"
     write_assign VL_LAYOUT "$layout"
     printf 'VL_MAX_LINES=%s\n' "$max_lines"
@@ -1286,14 +1290,23 @@ THEMES
 }
 
 update_settings() {
-  local tmp backup
+  local tmp backup bash_cmd
   command -v jq >/dev/null 2>&1 || die "jq is required to merge Claude settings"
+  if [ -n "${MSYSTEM:-}" ] || [ "$(uname -o 2>/dev/null)" = "Msys" ]; then
+    bash_cmd="\"C:/Program Files/Git/bin/bash.exe\" $(cygpath -m "$TARGET_DIR/statusline.sh")"
+  else
+    bash_cmd="bash $TARGET_DIR/statusline.sh"
+  fi
   mkdir -p "$(dirname "$SETTINGS_FILE")"
   tmp=$(mktemp "${TMPDIR:-/tmp}/coralline-settings.XXXXXX") || exit 1
   if [ -f "$SETTINGS_FILE" ]; then
     backup="$SETTINGS_FILE.bak.$(date +%Y%m%d%H%M%S)"
     cp "$SETTINGS_FILE" "$backup"
-    if ! jq --arg command "bash $TARGET_DIR/statusline.sh" '.statusLine = {
+    # mirror backup_statusline's retention: keep only the 3 newest
+    ls -1t "$SETTINGS_FILE".bak.* 2>/dev/null | tail -n +4 | while IFS= read -r old_bak; do
+      rm -f "$old_bak"
+    done
+    if ! jq --arg command "$bash_cmd" '.statusLine = {
       "type": "command",
       "command": $command,
       "refreshInterval": 1
@@ -1306,7 +1319,7 @@ update_settings() {
 {
   "statusLine": {
     "type": "command",
-    "command": "bash $TARGET_DIR/statusline.sh",
+    "command": "$bash_cmd",
     "refreshInterval": 1
   }
 }
@@ -1439,8 +1452,24 @@ main_menu() {
   fi
 }
 
+# --profile is resolved in a first pass so it applies regardless of argument
+# order (actions like --install run inline in the second pass).
 for arg in "$@"; do
   case "$arg" in
+    --profile=*)
+      profile_dir="${arg#--profile=}"
+      case "$profile_dir" in "~") profile_dir="$HOME" ;; "~/"*) profile_dir="$HOME/${profile_dir#\~/}" ;; esac
+      [ -d "$profile_dir" ] || die "profile dir not found: $profile_dir"
+      TARGET_DIR="$profile_dir/coralline"
+      CONFIG_FILE="$profile_dir/coralline.conf"
+      SETTINGS_FILE="$profile_dir/settings.json"
+      ;;
+  esac
+done
+
+for arg in "$@"; do
+  case "$arg" in
+    --profile=*) : ;;
     --install) install_files; update_settings ;;
     --install-only) install_only=1; install_files; update_settings ;;
     --default) setup_mode="default" ;;

@@ -150,6 +150,13 @@ restyle:
 bash ~/.claude/coralline/configure.sh
 ```
 
+Using multiple Claude profiles (e.g. `~/.claude-personal`)? Pass `--profile=DIR` to point the
+coralline dir, `coralline.conf`, and `settings.json` at that profile instead of `~/.claude`:
+
+```bash
+bash ~/.claude-personal/coralline/configure.sh --profile=~/.claude-personal
+```
+
 ### Testing a fork
 
 Point the installer at the same fork:

@@ -142,6 +142,13 @@ Claude 不需要操作這個人類 TUI。
 bash ~/.claude/coralline/configure.sh
 ```
 
+有多個 Claude profile（例如 `~/.claude-personal`）時，加上 `--profile=DIR` 讓 coralline
+目錄、`coralline.conf` 與 `settings.json` 都指向該 profile，而不是預設的 `~/.claude`：
+
+```bash
+bash ~/.claude-personal/coralline/configure.sh --profile=~/.claude-personal
+```
+
 ### 測試 fork
 
 讓 installer 指向同一個 fork：
