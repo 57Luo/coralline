@@ -1,8 +1,10 @@
 # coralline
 
 > A [Powerlevel10k](https://github.com/romkatv/powerlevel10k)-inspired statusline for Claude
-> Code with one installer entrypoint for humans and AI: run it directly, or ask Claude to run
-> it and handle the setup for you.
+> Code. This fork rewrites the rendering hot path from bash to a native Go executable,
+> eliminating the MSYS zombie-process problem on Windows
+> ([background](./openspec/changes/go-renderer-core/proposal.md)). The bash renderer is
+> retained for features not yet ported.
 
 [繁體中文說明](./README.zh-TW.md)
 
@@ -14,119 +16,47 @@
 ╭ ~/side-project/coralline  ⬢ coralline  ⎇ main+!  ◆ Fable 5  ψ high  ⬡ ▰▰▰▱▱ 62% ↑1.2M ↓45.6k  5h ▰▰▱▱▱ 41% ↺2h44m  7d ▰▰▰▰▱ 79% ↺1d11h  +321 −87  $1.23  ✎ Explanatory  ⧖ 47m  ⚑ 1  ⊙ 02:45 pm ╮
 ```
 
-| Segment | Shows |
-|---|---|
-| `dir` | current directory, long paths collapsed to `~/a/…/z` |
-| `project` | repo name (`⬢`), stable across every worktree; hidden outside a git repo |
-| `git` | branch, staged `+` / modified `!` / untracked `?`, ahead `⇡` behind `⇣` |
-| `node` | active Node version (Nerd Font `nf-dev-nodejs_small`) from `.nvmrc` / `.node-version` (or `node` on `PATH` with `VL_RUNTIME_PROBE=1`); hidden when undetected; opt-in |
-| `python` | active Python env (Nerd Font `nf-dev-python`) — `$VIRTUAL_ENV` / conda (skips `base`) / `.python-version` (or `python3` on `PATH` with `VL_RUNTIME_PROBE=1`); hidden when undetected; opt-in |
-| `model` | active Claude model |
-| `effort` | reasoning effort level (`ψ`) — `low` / `med` / `high` / `xhigh` / `max` |
-| `ctx` | context-window gauge, input/output/cache token counts |
-| `limit5h` / `limit7d` | rate-limit gauges with reset countdown |
-| `burn` | range-to-empty: projected time until the binding limit (5h or 7d) hits 100% at the recent burn rate (`↗`); opt-in by adding `burn` to `VL_SEGMENTS` |
-| `lines` | lines added/removed this session |
-| `cost` | session cost in USD |
-| `style` | active output style |
-| `duration` | session wall-clock duration |
-| `stash` | git stash count |
-| `clock` | time, 12h or 24h |
+| Segment | Shows | Go |
+|---|---|---|
+| `dir` | current directory, long paths collapsed to `~/a/…/z` | ✅ |
+| `project` | repo name (`⬢`), stable across every worktree; hidden outside a git repo | — |
+| `git` | branch, staged `+` / modified `!` / untracked `?`, ahead `⇡` behind `⇣` | ✅ |
+| `node` | active Node version (Nerd Font `nf-dev-nodejs_small`) from `.nvmrc` / `.node-version` (or `node` on `PATH` with `VL_RUNTIME_PROBE=1`); hidden when undetected; opt-in | — |
+| `python` | active Python env (Nerd Font `nf-dev-python`) — `$VIRTUAL_ENV` / conda (skips `base`) / `.python-version` (or `python3` on `PATH` with `VL_RUNTIME_PROBE=1`); hidden when undetected; opt-in | — |
+| `model` | active Claude model | ✅ |
+| `effort` | reasoning effort level (`ψ`) — `low` / `med` / `high` / `xhigh` / `max` | ✅ |
+| `ctx` | context-window gauge, input/output/cache token counts | ✅ |
+| `limit5h` / `limit7d` | rate-limit gauges with reset countdown | ✅ |
+| `burn` | range-to-empty: projected time until the binding limit (5h or 7d) hits 100% at the recent burn rate (`↗`); opt-in by adding `burn` to `VL_SEGMENTS` | ✅ |
+| `lines` | lines added/removed this session | — |
+| `cost` | session cost in USD | — |
+| `style` | active output style | — |
+| `duration` | session wall-clock duration | — |
+| `stash` | git stash count | — |
+| `clock` | time, 12h or 24h | — |
+
+**Go** column: ✅ = supported by the Go renderer, **—** = bash renderer only.
+
+The Go renderer supports the **pill** style and **fixed multi-line** layout.
+The **lean**, **classic** styles and **auto** (responsive) layout are currently
+bash-only. Both renderers share the same `coralline.conf` and `themes/*.conf`
+files — switching between them requires no config changes.
 
 Gauges change color as they fill: green → yellow at 50% → red at 75% (thresholds configurable).
 
 ## Install
 
-Three ways to install, all driven by the same `install.sh`. Each one copies the renderer **and
-the setup wizard** into `~/.claude/coralline` and registers the status line in Claude Code, so
-you can re-run the wizard later no matter which way you installed.
-
-> **Requirements:** `jq` and a [Nerd Font](https://www.nerdfonts.com/) terminal. No Nerd Font?
-> Set `VL_ASCII=1` in your config for a glyph-free rendering.
-
-### Ask Claude (recommended)
-
-Paste this into Claude Code:
-
-```text
-Please install coralline for me:
-fetch https://raw.githubusercontent.com/Nanako0129/coralline/main/INSTALL.md
-and follow the playbook in it.
-```
-
-Claude will read the playbook, use the same installer to bootstrap the runtime, interview you
-about the look, write the config, verify it, and remind you that you can rerun the visual
-wizard if the first result doesn't match your taste.
-
-If your Claude flags the playbook and wants to inspect things first, that is the right
-instinct, not an obstacle: see [Trust and security](#trust-and-security).
-
-### Install it yourself
-
-Run the installer in your terminal:
+See [INSTALL.md](./INSTALL.md) for the full installation guide. The primary
+path is building the Go renderer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.sh | bash
+cd cmd/coralline && go build -o coralline.exe .
 ```
 
-When run interactively it asks which version to install — the latest tagged release
-(recommended) or `main` (latest development). To skip the prompt, pin one explicitly with
-`--ref`, e.g. `... | bash -s -- --ref v0.9.1` or `--ref main`.
-
-### Manual
-
-```bash
-git clone https://github.com/Nanako0129/coralline ~/.claude/coralline-src
-mkdir -p ~/.claude/coralline/themes
-cp ~/.claude/coralline-src/statusline.sh ~/.claude/coralline/
-cp ~/.claude/coralline-src/configure.sh ~/.claude/coralline/
-cp ~/.claude/coralline-src/install.sh ~/.claude/coralline/
-cp ~/.claude/coralline-src/themes/claude-coral.conf ~/.claude/coralline/themes/
-```
-
-Then add to `~/.claude/settings.json`:
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "bash ~/.claude/coralline/statusline.sh",
-    "refreshInterval": 1
-  }
-}
-```
-
-> **Note:** the commands above copy only the `claude-coral` theme. The Ask-Claude and one-line
-> installers bundle every theme; after a manual install, copy the rest of
-> `~/.claude/coralline-src/themes/*.conf` into `~/.claude/coralline/themes/` to switch themes.
-
-### Updating
-
-Two ways to update, both driven by the same installer. Either way your
-`~/.claude/coralline.conf` is preserved and the previous `statusline.sh` is backed up
-under `~/.claude/coralline/` (the 3 newest are kept).
-
-#### Ask Claude (recommended)
-
-Paste this into Claude Code:
-
-```text
-Please update coralline for me:
-fetch https://raw.githubusercontent.com/Nanako0129/coralline/main/UPGRADE.md
-and follow the playbook in it.
-```
-
-Claude re-runs the installer, reads the "new since your installed copy" report, and
-offers to turn on any new opt-in features for you.
-
-#### Update it yourself
-
-Re-run the installer — it prints a short "new since your installed copy" report when
-something new shipped:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.sh | bash -s -- --install-only
-```
+Then register the compiled binary as the `statusLine` command in
+`~/.claude/settings.json`. If you need segments or styles not yet ported to Go,
+the bash renderer is documented in the
+[INSTALL.md Appendix](./INSTALL.md#appendix-bash-renderer-installsh).
 
 ## Trust and security
 
@@ -146,9 +76,10 @@ that skepticism is inspection, not trust:
   `~/.claude/coralline.conf`, and one `statusLine` entry merged into
   `~/.claude/settings.json` (a timestamped `settings.json.bak.*` backup is created first).
   Nothing else.
-- **What runs afterwards:** `statusline.sh` renders on every prompt. It is pure bash and
-  makes zero network requests at runtime; the only external commands are one `jq` call and
-  one `git` call per render. Your prompts, keys, and usage data never leave the machine.
+- **What runs afterwards:** the Go renderer is a single binary that makes zero network
+  requests; the only external command it spawns is one `git` call per render. The bash
+  renderer is pure bash with one `jq` and one `git` call per render. Your prompts, keys,
+  and usage data never leave the machine.
 - **Why INSTALL.md addresses the AI:** humans get the visual wizard, AIs get an interview
   script, so the playbook speaks to the reader that executes it. A document that opens by
   addressing your AI deserves scrutiny, which is why every artifact it references lives in
@@ -163,54 +94,14 @@ rm -rf ~/.claude/coralline ~/.claude/coralline.conf
 Then delete the `statusLine` block from `~/.claude/settings.json` (or restore the newest
 `settings.json.bak.*`). Nothing else is left behind.
 
-## Setup
-
-Both paths use the same installer. Humans run it with no mode and get the visual setup. Claude
-uses it with `--install-only`, then follows `INSTALL.md` to interview you and write config.
-
-### Setup modes
-
-| Mode | Use when |
-|---|---|
-| Default | You want the coralline default immediately |
-| Powerlevel10k import | You already have `~/.p10k.zsh` and want to carry over its style, time format, and main colors |
-| Visual wizard | You want to preview themes, style, segments, wrapping, clock, and font compatibility before writing config |
-
-Running the installer yourself with no mode opens the interactive setup. Claude should not
-operate that TUI unless you explicitly ask for visual customization.
-
-### Reconfigure
-
-Every install path copies the wizard into `~/.claude/coralline`, so you can rerun it anytime to
-restyle:
-
-```bash
-bash ~/.claude/coralline/configure.sh
-```
-
-Using multiple Claude profiles (e.g. `~/.claude-personal`)? Pass `--profile=DIR` to point the
-coralline dir, `coralline.conf`, and `settings.json` at that profile instead of `~/.claude`:
-
-```bash
-bash ~/.claude-personal/coralline/configure.sh --profile=~/.claude-personal
-```
-
-### Testing a fork
-
-Point the installer at the same fork:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/YOU/coralline/main/install.sh | bash -s -- --repo YOU/coralline
-```
-
 ## Configuration
 
 Everything lives in `~/.claude/coralline.conf` (plain bash, sourced by the script):
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `VL_STYLE` | `pill` | `pill`: powerline pills · `lean`: flat colored text · `classic`: lean on a uniform dark bar (p10k classic) |
-| `VL_LAYOUT` | `fixed` | `fixed`: one line per `VL_SEGMENTS*` var · `auto`: responsive |
+| `VL_STYLE` | `pill` | `pill`: powerline pills · `lean`: flat colored text (bash only) · `classic`: lean on a uniform dark bar (bash only) |
+| `VL_LAYOUT` | `fixed` | `fixed`: one line per `VL_SEGMENTS*` var · `auto`: responsive (bash only) |
 | `VL_MAX_LINES` | `3` | `auto` only — wrap into at most this many lines (`1` = never wrap) |
 | `VL_WRAP_MARGIN` | `4` | `auto` only — columns kept free on the right so segments never touch the edge |
 | `VL_SEGMENTS` | `dir git model ctx limit5h limit7d cost clock` | segments on line 1, in order (the full list in `auto` mode) |
@@ -264,7 +155,7 @@ This exists because Claude Code re-renders a session's statusline only when that
 
 Single-session users gain nothing from it (there is only one snapshot), so it stays opt-in.
 
-### Responsive layout
+### Responsive layout (bash only)
 
 With `VL_LAYOUT="auto"` the bar stays on a single line while it fits, and greedily wraps into
 up to `VL_MAX_LINES` rows when the window gets narrow. Once the line cap is reached, remaining
@@ -286,7 +177,7 @@ narrow window:  ~/dev/app  ⎇ main  ◆ Fable 5
 Prefer a layout that never moves? Keep `VL_LAYOUT="fixed"` and pin rows with
 `VL_SEGMENTS` / `VL_SEGMENTS2` / `VL_SEGMENTS3`.
 
-### Lean style
+### Lean style (bash only)
 
 Prefer Powerlevel10k's *lean* look — no backgrounds, just colored text? Set
 `VL_STYLE="lean"` and each segment's `VL_BG_*` color becomes its text accent instead:
@@ -299,14 +190,14 @@ Prefer Powerlevel10k's *lean* look — no backgrounds, just colored text? Set
 | `VL_LEAN_SEP` | _(empty)_ | extra text between segments, e.g. `·` |
 | `VL_LEAN_FG` | _(empty)_ | force a text color; empty = inherit each segment's accent |
 | `VL_LEAN_BG` | _(empty)_ | paint one uniform background behind the row — `"R,G,B"` or 256 index. For the full p10k *classic* look, prefer the `VL_STYLE="classic"` preset below — it wires this up for you |
-| `VL_LEAN_CAP_R` | _(empty)_ | trailing cap glyph drawn in the `VL_LEAN_BG` color to bevel the bar's end into the terminal (p10k's end separator, e.g. `$''`); needs `VL_LEAN_BG` |
-| `VL_LEAN_CAP_L` | _(empty)_ | leading cap glyph — the left-facing mirror of `VL_LEAN_CAP_R` at the bar's start (e.g. `$''`); needs `VL_LEAN_BG`. Stock p10k *classic* leaves it flat |
+| `VL_LEAN_CAP_R` | _(empty)_ | trailing cap glyph drawn in the `VL_LEAN_BG` color to bevel the bar's end into the terminal (p10k's end separator, e.g. `$''`); needs `VL_LEAN_BG` |
+| `VL_LEAN_CAP_L` | _(empty)_ | leading cap glyph — the left-facing mirror of `VL_LEAN_CAP_R` at the bar's start (e.g. `$''`); needs `VL_LEAN_BG`. Stock p10k *classic* leaves it flat |
 
 > **Tip:** already a p10k user? Tell the AI installer or the visual wizard to import your
 > `~/.p10k.zsh` — it will carry over your style, colors, and time format after you opt in.
 > See the [AI interview notes in INSTALL.md](./INSTALL.md#ai-interview).
 
-### Classic style
+### Classic style (bash only)
 
 Want Powerlevel10k's stock *classic* prompt — one uniform dark bar with colored
 text and a solid end cap? Set `VL_STYLE="classic"`. It's a one-word preset: it
@@ -324,7 +215,7 @@ Under the hood `classic` is `lean` plus a `VL_LEAN_BG` (from `VL_BG_BAR`) and a
 `VL_LEAN_CAP_R` end cap, so an explicit `VL_LEAN_BG` or cap still wins. Importing
 a p10k *classic* config carries over your exact bar color and separator.
 
-## Float readout (optional)
+## Float readout (optional, bash only)
 
 `VL_FLOAT=1` makes `statusline.sh` write a one-line **plain-text** readout to
 `~/.claude/coralline/float.txt` on every render (segments from
@@ -380,25 +271,28 @@ The wizard discovers themes automatically from `themes/*.conf` and nested collec
 
 | Platform | Status |
 |---|---|
-| macOS | ✅ supported (works on the stock bash 3.2) |
-| Linux | ✅ supported |
-| Windows + Git Bash | ✅ supported — Claude Code runs the status line through Git Bash when it's installed |
-| Windows without Git Bash | ❌ not yet — Claude Code falls back to PowerShell, which can't run the bash script ([roadmap](https://github.com/Nanako0129/coralline/issues)) |
+| macOS | ✅ supported — Go renderer or bash renderer |
+| Linux | ✅ supported — Go renderer or bash renderer |
+| Windows | ✅ supported — Go renderer is the recommended path (native .exe, no MSYS dependency) |
+| Windows + Git Bash | ✅ bash renderer also works when Git Bash and `jq` are installed |
 
-> **Windows note:** install [Git for Windows](https://git-scm.com/download/win) (which bundles
-> Git Bash) and `jq`, and coralline runs natively. A native PowerShell port for the no-Git-Bash
-> case is on the roadmap. The render path is built to stay cheap under Git Bash's emulated
-> `fork()` — one `jq`, one `git`, and no per-field subprocess spawning.
+> **Windows note:** the Go renderer runs natively without Git Bash or `jq`. If you use the
+> bash renderer, install [Git for Windows](https://git-scm.com/download/win) (which bundles
+> Git Bash) and `jq`.
 
 ## Why it's fast
 
-The statusline is just a local shell script: it makes no network or API calls and uses zero
-tokens. Claude Code pipes the session JSON to it on stdin and renders whatever it prints.
+The Go renderer is a single native binary: it makes no network or API calls, spawns only
+one `git` child process per render, and has a 5-second hard watchdog. No `jq`, no bash,
+no MSYS layer on Windows.
 
-It runs every second (`refreshInterval: 1`), so the script is built to be cheap on CPU: one
-`jq` invocation extracts every field at once, and one `git status --porcelain=v2 --branch`
-call provides branch, dirty state, and ahead/behind together. No `bc`, no per-field subprocess
-spam. Works on stock macOS bash 3.2 and any Linux bash.
+The bash renderer is also fast: one `jq` invocation extracts every field at once, one
+`git status --porcelain=v2 --branch` call provides branch, dirty state, and ahead/behind
+together. No `bc`, no per-field subprocess spam. Works on stock macOS bash 3.2 and any
+Linux bash.
+
+Both renderers run every second (`refreshInterval: 1`) and make zero network requests.
+Claude Code pipes the session JSON to them on stdin and renders whatever they print.
 
 ## Acknowledgements
 
