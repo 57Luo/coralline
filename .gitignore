@@ -3,3 +3,12 @@ __pycache__/
 .DS_Store
 .claude/worktrees/
 docs/superpowers/
+.spectra/
+openspec/.vector-search.db*
+.claude/
+.spectra.yaml
+CLAUDE.md
+
+# Go build artifact (hot-path renderer; built, never committed)
+/coralline.exe
+coralline.exe
