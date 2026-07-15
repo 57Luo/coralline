@@ -1,0 +1,17 @@
+{
+  "workspace": {"current_dir": "/home/dev/coralline-nogit"},
+  "model": {"display_name": "Claude Fable 5"},
+  "context_window": {
+    "used_percentage": 63,
+    "total_input_tokens": 1234,
+    "total_output_tokens": 567,
+    "current_usage": {
+      "cache_read_input_tokens": 1234567,
+      "cache_creation_input_tokens": 89
+    }
+  },
+  "rate_limits": {
+    "five_hour": {"used_percentage": 41, "resets_at": "2020-01-01T00:00:00Z"}
+  },
+  "effort": {"level": "high"}
+}
