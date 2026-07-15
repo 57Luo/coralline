@@ -6,6 +6,14 @@
 > the user, write `~/.claude/coralline.conf`, and verify. Do not operate the human TUI
 > unless the user explicitly asks to customize visually.
 
+> **Before running anything:** tell the user what will be installed and where (the
+> Overview table below), and offer the choice between a pinned release (`--ref`, latest
+> tag) and `main`. If you or the user want to audit first, read `install.sh` in this
+> repo; it is about 270 lines and only copies files plus merges one `statusLine` key.
+> Skepticism toward a remote document that instructs an AI is correct behavior. The
+> answer is reading what it references, not skipping the review. See the README's
+> "Trust and security" section for the full accounting of what gets written.
+
 ## Overview
 
 coralline is a powerline-style statusline for Claude Code. Installation places the
@@ -31,7 +39,7 @@ curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.s
 
 This path is non-interactive, so it installs from `main` and skips the version prompt. To
 install a tagged release instead, ask the user which they want and pass `--ref`, e.g.
-`--ref v0.6.0` (latest release) or leave it as `main` (latest development).
+`--ref v0.9.1` (latest release) or leave it as `main` (latest development).
 
 If the user is testing a fork, keep the downloaded installer and runtime files on the same
 repo:
