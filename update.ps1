@@ -25,7 +25,16 @@ $tmpBin = Join-Path $installDir 'coralline.exe.new'
 go build -o $tmpBin ./cmd/coralline
 if ($LASTEXITCODE -ne 0) { Write-Error 'build failed — installed binary unchanged'; exit 1 }
 
+# A running statusline render holds the exe open: Windows forbids overwriting
+# a running binary but allows renaming it. Rename the old one aside, move the
+# new one in, then best-effort delete the leftover.
+$oldBin = "$installedBin.old"
+if (Test-Path $installedBin) {
+    if (Test-Path $oldBin) { try { Remove-Item -Force $oldBin -ErrorAction Stop } catch {} }
+    Move-Item -Force $installedBin $oldBin
+}
 Move-Item -Force $tmpBin $installedBin
+try { Remove-Item -Force $oldBin -ErrorAction Stop } catch {}
 
 # Sync themes that differ (or are new) from repo to install dir.
 $themeDstDir = Join-Path $installDir 'themes'
