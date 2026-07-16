@@ -58,6 +58,14 @@ Then register the compiled binary as the `statusLine` command in
 the bash renderer is documented in the
 [INSTALL.md Appendix](./INSTALL.md#appendix-bash-renderer-installsh).
 
+## Update
+
+Once installed, updating is one command from the repo root — `./update.ps1`
+(Windows) or `./update.sh` (macOS/Linux). It pulls, runs the full test suite,
+and only then builds and deploys the binary (plus any changed themes) to
+`~/.claude/coralline/`. If tests or the build fail, the installed statusline
+is left untouched.
+
 ## Trust and security
 
 The Ask-Claude install is a remote document that instructs an AI to run `curl | bash` and

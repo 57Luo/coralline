@@ -54,6 +54,13 @@ cd cmd/coralline && go build -o coralline.exe .
 若需要尚未移植到 Go 的區段或風格，bash 版文件在
 [INSTALL.md 附錄](./INSTALL.md#appendix-bash-renderer-installsh)。
 
+## 更新
+
+裝好之後，更新只要在 repo 根目錄執行一條指令——Windows 用 `./update.ps1`、
+macOS/Linux 用 `./update.sh`。腳本會 pull、跑完整測試、通過後才 build 並部署
+binary（與有變更的 themes）到 `~/.claude/coralline/`。測試或 build 失敗時，
+已安裝的 statusline 完全不會被動到。
+
 ## 信任與安全
 
 「請 Claude 安裝」本質上是一份遠端文件，指示 AI 執行 `curl | bash` 並修改
