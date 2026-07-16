@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change 'go-renderer-core'. Update Purpose after archive.
+Define the Go statusline renderer's core contract: render the statusline from Claude Code's stdin session JSON (tolerating string/number field variance), reproduce the bash renderer's core segment set and fixed multi-line layout byte-for-byte, and share coralline.conf / themes configuration so the renderers are drop-in interchangeable.
 
 ## Requirements
 

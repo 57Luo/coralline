@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change 'go-renderer-core'. Update Purpose after archive.
+Guarantee the Go renderer can never wedge a Claude Code session: a hard watchdog deadline kills the process regardless of what it blocks on, stdin is read bounded, subprocesses share a timeout budget, and every failure degrades to reduced-or-empty output — never an error message, never a hang, never a zombie process.
 
 ## Requirements
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change 'go-renderer-core'. Update Purpose after archive.
+Keep the Go renderer's on-disk data formats bit-compatible with the bash implementation — the usage-state JSON snapshot, burn sample TSV, and the mkdir-based rate-limit snapshot directory stores — so both renderers (and external hooks) can read and write the same files on the same machine without migration.
 
 ## Requirements
 

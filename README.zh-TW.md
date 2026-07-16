@@ -18,23 +18,23 @@
 | 區段 | 顯示內容 | Go |
 |---|---|---|
 | `dir` | 目前目錄，過長路徑摺疊為 `~/a/…/z` | ✅ |
-| `project` | repo 名稱（`⬢`），在所有 worktree 都相同；非 git repo 時隱藏 | — |
+| `project` | repo 名稱（`⬢`），在所有 worktree 都相同；非 git repo 時隱藏 | ✅ |
 | `git` | 分支、已暫存 `+` / 已修改 `!` / 未追蹤 `?`、領先 `⇡` 落後 `⇣` | ✅ |
-| `node` | 目前 Node 版本（Nerd Font `nf-dev-nodejs_small`），來自 `.nvmrc` / `.node-version`（或以 `VL_RUNTIME_PROBE=1` 讀取 `PATH` 上的 `node`）；偵測不到時隱藏；需手動開啟 | — |
-| `python` | 目前 Python 環境（Nerd Font `nf-dev-python`）—— `$VIRTUAL_ENV` / conda（略過 `base`）/ `.python-version`（或以 `VL_RUNTIME_PROBE=1` 讀取 `PATH` 上的 `python3`）；偵測不到時隱藏；需手動開啟 | — |
+| `node` | 目前 Node 版本（Nerd Font `nf-dev-nodejs_small`），來自 `.nvmrc` / `.node-version`（或以 `VL_RUNTIME_PROBE=1` 讀取 `PATH` 上的 `node`）；偵測不到時隱藏；需手動開啟 | ✅ |
+| `python` | 目前 Python 環境（Nerd Font `nf-dev-python`）—— `$VIRTUAL_ENV` / conda（略過 `base`）/ `.python-version`（或以 `VL_RUNTIME_PROBE=1` 讀取 `PATH` 上的 `python3`）；偵測不到時隱藏；需手動開啟 | ✅ |
 | `model` | 目前使用的 Claude 模型 | ✅ |
 | `effort` | 推理強度（`ψ`）—— `low` / `med` / `high` / `xhigh` / `max` | ✅ |
 | `ctx` | context window 量表、輸入/輸出/快取 token 數 | ✅ |
 | `limit5h` / `limit7d` | 用量限額量表與重置倒數 | ✅ |
 | `burn` | 消耗時間預估：根據最近燒耗率推算，何時會達到限額上限（5h 或 7d）100%（`↗`）；把 `burn` 加入 `VL_SEGMENTS` 啟用 | ✅ |
-| `lines` | 本次 session 修改行數 | — |
-| `cost` | 本次 session 花費（USD） | — |
-| `style` | 目前的 output style | — |
-| `duration` | session 經過時間 | — |
-| `stash` | git stash 數量 | — |
-| `clock` | 時鐘，12 或 24 小時制 | — |
+| `lines` | 本次 session 修改行數 | ✅ |
+| `cost` | 本次 session 花費（USD） | ✅ |
+| `style` | 目前的 output style | ✅ |
+| `duration` | session 經過時間 | ✅ |
+| `stash` | git stash 數量 | ✅ |
+| `clock` | 時鐘，12 或 24 小時制 | ✅ |
 
-**Go** 欄：✅ = Go renderer 已支援，**—** = 僅 bash 版。
+**Go** 欄：✅ = Go renderer 已支援。所有區段兩個 renderer 皆支援。
 
 Go renderer 支援 **pill** 風格與**固定多行**版面。**lean**、**classic** 風格與
 **auto**（響應式）版面目前僅 bash 版可用。兩版共用同一份 `coralline.conf` 與
@@ -51,7 +51,7 @@ cd cmd/coralline && go build -o coralline.exe .
 ```
 
 再把編譯出的二進位檔註冊為 `~/.claude/settings.json` 裡的 `statusLine` 指令。
-若需要尚未移植到 Go 的區段或風格，bash 版文件在
+若需要尚未移植到 Go 的風格或版面（lean、classic、auto），bash 版文件在
 [INSTALL.md 附錄](./INSTALL.md#appendix-bash-renderer-installsh)。
 
 ## 更新

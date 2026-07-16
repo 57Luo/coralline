@@ -83,17 +83,15 @@ variables.
 
 ### Current coverage
 
-The Go renderer currently supports **8 segments**: `ctx`, `git`, `dir`,
-`model`, `effort`, `limit5h`, `limit7d`, `burn`, plus the **pill** style and
-**fixed multi-line** layout (`VL_SEGMENTS` / `VL_SEGMENTS2` / `VL_SEGMENTS3` /
-`VL_MAX_LINES`).
+The Go renderer supports **all 18 segments** (`dir`, `git`, `model`, `effort`,
+`ctx`, `limit5h`, `limit7d`, `burn`, `cost`, `clock`, `lines`, `tokens`,
+`style`, `duration`, `stash`, `project`, `node`, `python`), plus the **pill**
+style and **fixed multi-line** layout (`VL_SEGMENTS` / `VL_SEGMENTS2` /
+`VL_SEGMENTS3` / `VL_MAX_LINES`).
 
-Segments and styles **not yet ported** (available only via the bash renderer):
-`project`, `node`, `python`, `lines`, `cost`, `style`, `duration`, `stash`,
-`clock`, and the `lean` / `classic` / `auto` layout styles.
-
-If you need unported features, use the bash renderer instead — see the
-[Appendix](#appendix-bash-renderer-installsh).
+**Not yet ported** (available only via the bash renderer): the `lean` /
+`classic` styles and the `auto` responsive layout. If you need those, use the
+bash renderer instead — see the [Appendix](#appendix-bash-renderer-installsh).
 
 ---
 
@@ -124,8 +122,7 @@ Ask concise questions. If the user says "you decide", choose the defaults.
 2. **Style**: `pill` default. Note: `lean` and `classic` are only available with the bash
    renderer.
 3. **Segments**: default is `dir git model ctx limit5h limit7d cost clock`.
-   The Go renderer supports: `ctx`, `git`, `dir`, `model`, `effort`, `limit5h`, `limit7d`,
-   `burn`. Other segments require the bash renderer.
+   The Go renderer supports all segments.
 4. **Layout**: fixed multi-line (`VL_MAX_LINES`). Note: `auto` responsive layout is only
    available with the bash renderer.
 5. **Details**: clock format, Nerd Font, project segment, limit sync — same as upstream.
@@ -176,7 +173,7 @@ command -v curl || echo "MISSING: curl"
 ### Quick install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/57Luo/coralline/main/install.sh | bash
 ```
 
 Pin a tagged release: `... | bash -s -- --ref v0.9.1`.
@@ -184,7 +181,7 @@ Pin a tagged release: `... | bash -s -- --ref v0.9.1`.
 Non-interactive (for AI installs):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.sh | bash -s -- --install-only
+curl -fsSL https://raw.githubusercontent.com/57Luo/coralline/main/install.sh | bash -s -- --install-only
 ```
 
 ### Testing a fork
@@ -206,7 +203,7 @@ The installer copies the renderer, wizard, sample input, and themes into
 ### Manual install
 
 ```bash
-git clone https://github.com/Nanako0129/coralline ~/.claude/coralline-src
+git clone https://github.com/57Luo/coralline ~/.claude/coralline-src
 mkdir -p ~/.claude/coralline/themes
 cp ~/.claude/coralline-src/statusline.sh ~/.claude/coralline/
 cp ~/.claude/coralline-src/configure.sh ~/.claude/coralline/

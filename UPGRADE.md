@@ -5,7 +5,28 @@
 > only *reports* what is new; you enable the new opt-in features additively, with the
 > user's consent.
 
-## Overview
+## Go renderer (primary path)
+
+If the user runs the Go renderer (a `coralline` / `coralline.exe` binary registered
+as the `statusLine` command), upgrading is one command from the repo root:
+
+    ./update.ps1        # Windows
+    ./update.sh         # macOS/Linux
+
+The script pulls the current branch, runs the full Go test suite, and only on
+success builds and deploys the binary — plus any changed `themes/*.conf` — to
+`~/.claude/coralline/`. If tests or the build fail it exits non-zero and the
+installed binary is left untouched. A rebuild is only ever needed when the pulled
+changes touch `internal/` or `cmd/`; the script is cheap enough to run
+unconditionally after every pull.
+
+Existing configuration keeps working: the Go renderer reads the same
+`~/.claude/coralline.conf` and `themes/*.conf` as before — no migration, no
+config edits.
+
+The rest of this document covers the **bash renderer** upgrade path.
+
+## Overview (bash renderer)
 
 "Upgrade" means: re-run the installer in install-only mode, read the
 "new since your installed copy" report it prints, and offer to enable the new
@@ -21,7 +42,7 @@ preserved; the prior `statusline.sh` is backed up to
 
 Re-install the runtime without opening the wizard, capturing its stdout:
 
-    curl -fsSL https://raw.githubusercontent.com/Nanako0129/coralline/main/install.sh | bash -s -- --install-only
+    curl -fsSL https://raw.githubusercontent.com/57Luo/coralline/main/install.sh | bash -s -- --install-only
 
 From a local clone instead:
 

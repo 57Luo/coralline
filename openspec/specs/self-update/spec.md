@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change 'add-update-script'. Update Purpose after archive.
+Provide a single-command way to update the installed statusline from a repo checkout (update.ps1 / update.sh): pull, run the full test suite, and only on success build and deploy the binary and changed themes. Failed tests or builds must never touch the working installation.
 
 ## Requirements
 

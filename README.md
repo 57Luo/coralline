@@ -19,23 +19,24 @@
 | Segment | Shows | Go |
 |---|---|---|
 | `dir` | current directory, long paths collapsed to `~/a/…/z` | ✅ |
-| `project` | repo name (`⬢`), stable across every worktree; hidden outside a git repo | — |
+| `project` | repo name (`⬢`), stable across every worktree; hidden outside a git repo | ✅ |
 | `git` | branch, staged `+` / modified `!` / untracked `?`, ahead `⇡` behind `⇣` | ✅ |
-| `node` | active Node version (Nerd Font `nf-dev-nodejs_small`) from `.nvmrc` / `.node-version` (or `node` on `PATH` with `VL_RUNTIME_PROBE=1`); hidden when undetected; opt-in | — |
-| `python` | active Python env (Nerd Font `nf-dev-python`) — `$VIRTUAL_ENV` / conda (skips `base`) / `.python-version` (or `python3` on `PATH` with `VL_RUNTIME_PROBE=1`); hidden when undetected; opt-in | — |
+| `node` | active Node version (Nerd Font `nf-dev-nodejs_small`) from `.nvmrc` / `.node-version` (or `node` on `PATH` with `VL_RUNTIME_PROBE=1`); hidden when undetected; opt-in | ✅ |
+| `python` | active Python env (Nerd Font `nf-dev-python`) — `$VIRTUAL_ENV` / conda (skips `base`) / `.python-version` (or `python3` on `PATH` with `VL_RUNTIME_PROBE=1`); hidden when undetected; opt-in | ✅ |
 | `model` | active Claude model | ✅ |
 | `effort` | reasoning effort level (`ψ`) — `low` / `med` / `high` / `xhigh` / `max` | ✅ |
 | `ctx` | context-window gauge, input/output/cache token counts | ✅ |
 | `limit5h` / `limit7d` | rate-limit gauges with reset countdown | ✅ |
 | `burn` | range-to-empty: projected time until the binding limit (5h or 7d) hits 100% at the recent burn rate (`↗`); opt-in by adding `burn` to `VL_SEGMENTS` | ✅ |
-| `lines` | lines added/removed this session | — |
-| `cost` | session cost in USD | — |
-| `style` | active output style | — |
-| `duration` | session wall-clock duration | — |
-| `stash` | git stash count | — |
-| `clock` | time, 12h or 24h | — |
+| `lines` | lines added/removed this session | ✅ |
+| `cost` | session cost in USD | ✅ |
+| `style` | active output style | ✅ |
+| `duration` | session wall-clock duration | ✅ |
+| `stash` | git stash count | ✅ |
+| `clock` | time, 12h or 24h | ✅ |
 
-**Go** column: ✅ = supported by the Go renderer, **—** = bash renderer only.
+**Go** column: ✅ = supported by the Go renderer. All segments are supported by
+both renderers.
 
 The Go renderer supports the **pill** style and **fixed multi-line** layout.
 The **lean**, **classic** styles and **auto** (responsive) layout are currently
@@ -54,8 +55,8 @@ cd cmd/coralline && go build -o coralline.exe .
 ```
 
 Then register the compiled binary as the `statusLine` command in
-`~/.claude/settings.json`. If you need segments or styles not yet ported to Go,
-the bash renderer is documented in the
+`~/.claude/settings.json`. If you need the styles or layouts not yet ported to
+Go (lean, classic, auto), the bash renderer is documented in the
 [INSTALL.md Appendix](./INSTALL.md#appendix-bash-renderer-installsh).
 
 ## Update

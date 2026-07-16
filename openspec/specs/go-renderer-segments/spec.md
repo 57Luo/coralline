@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change 'go-segment-parity'. Update Purpose after archive.
+Define the segments ported to the Go renderer beyond the original core set (cost, clock, lines, tokens, style, duration, stash, project, node, python), each mirroring the bash renderer's visible output, hide conditions, and configuration knobs so the two renderers stay interchangeable on the same coralline.conf.
 
 ## Requirements
 

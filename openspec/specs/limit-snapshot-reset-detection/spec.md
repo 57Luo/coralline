@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change 'fix-limitsnap-reset-detection'. Update Purpose after archive.
+Detect official mid-window rate-limit resets in the limit-sync high-water snapshot store. The high-water strategy assumes usage percentage only climbs within one reset window; when the provider resets usage mid-window (same resets_at, percentage drops sharply), stale high-water entries must be purged so the statusline recovers immediately instead of staying stuck until the window ends.
 
 ## Requirements
 
