@@ -184,13 +184,19 @@ func collapsePath(cwd, home string, depth int) string {
 	if home != "" && strings.HasPrefix(cwd, home) {
 		short = "~" + cwd[len(home):]
 	}
-	fields := strings.Split(short, "/")
+	// Windows-native paths separate with backslashes; split and rejoin with
+	// whichever separator the path actually uses so both shapes collapse.
+	sep := "/"
+	if strings.Contains(short, `\`) {
+		sep = `\`
+	}
+	fields := strings.Split(short, sep)
 	if len(fields) > depth {
 		second := ""
 		if len(fields) > 1 {
 			second = fields[1]
 		}
-		return fields[0] + "/" + second + "/…/" + fields[len(fields)-1]
+		return fields[0] + sep + second + sep + "…" + sep + fields[len(fields)-1]
 	}
 	return short
 }

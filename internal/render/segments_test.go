@@ -65,6 +65,12 @@ func TestCollapsePath(t *testing.T) {
 		{"/home/dev/coralline-nogit", "", 4, "/home/dev/coralline-nogit"}, // 4 fields → unchanged
 		{"/c/Users/me/proj/x", "/c/Users/me", 4, "~/proj/x"},              // HOME collapse, 4 fields
 		{"/c/Users/me/a/b/c/d", "/c/Users/me", 4, "~/a/…/d"},              // HOME collapse, 5 fields
+		// Windows-native paths collapse on backslashes (spec: Path collapsing
+		// supports Windows separators).
+		{`C:\Users\demo\projects\deep\nested\coralline`, "", 4, `C:\Users\…\coralline`},
+		{`C:\Users\demo\projects\deep\nested\coralline`, `C:\Users\demo`, 4, `~\projects\…\coralline`},
+		{"/Users/demo/coralline", "", 4, "/Users/demo/coralline"}, // POSIX 4 fields → unchanged
+		{"/Users/demo/projects/deep/nested/coralline", "", 4, "/Users/…/coralline"},
 	}
 	for _, c := range cases {
 		if got := collapsePath(c.cwd, c.home, c.depth); got != c.want {
