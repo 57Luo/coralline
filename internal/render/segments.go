@@ -2,8 +2,10 @@ package render
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"coralline/internal/conf"
 	"coralline/internal/epoch"
@@ -46,20 +48,44 @@ type Data struct {
 	// entirely when neither input percentage was present.
 	BurnGuard bool
 	Now       int64
+
+	Cost     string // cost.total_cost_usd
+	LinesAdd int64  // cost.total_lines_added
+	LinesDel int64  // cost.total_lines_removed
+	OutStyle string // output_style.name
+	DurMs    int64  // cost.total_duration_ms
+
+	StashCount int    // from gitstate
+	GitRoot    string // from gitstate, for project segment
+
+	NodeVersion   string // from runtime.DetectNode
+	PythonVersion string // from runtime.DetectPython
+
+	SegScan string // space-padded segment scan string, e.g. " dir git model ... "
 }
 
 // builder produces a segment; ok=false hides it.
 type builder func(c *conf.Config, d Data) (Segment, bool)
 
 var builders = map[string]builder{
-	"dir":     segDir,
-	"git":     segGit,
-	"model":   segModel,
-	"effort":  segEffort,
-	"ctx":     segCtx,
-	"limit5h": segLimit5h,
-	"limit7d": segLimit7d,
-	"burn":    segBurn,
+	"dir":      segDir,
+	"git":      segGit,
+	"model":    segModel,
+	"effort":   segEffort,
+	"ctx":      segCtx,
+	"limit5h":  segLimit5h,
+	"limit7d":  segLimit7d,
+	"burn":     segBurn,
+	"cost":     segCost,
+	"clock":    segClock,
+	"lines":    segLines,
+	"tokens":   segTokens,
+	"style":    segStyle,
+	"duration": segDuration,
+	"stash":    segStash,
+	"project":  segProject,
+	"node":     segNode,
+	"python":   segPython,
 }
 
 // ---- helpers ----
@@ -292,5 +318,160 @@ func segBurn(c *conf.Config, d Data) (Segment, bool) {
 		col = c.Get("VL_FG_OK")
 	}
 	text := FG(col) + " " + glyph + " " + d.Burn.Label + " ⇢ " + fmtETA(d.Burn.ETA) + " "
+	return Segment{BG: bg, Text: text}, true
+}
+
+func segCost(c *conf.Config, d Data) (Segment, bool) {
+	if d.Cost == "" || d.Cost == "0" {
+		return Segment{}, false
+	}
+	decimals := confInt(c, "VL_COST_DECIMALS", 2)
+	f, err := strconv.ParseFloat(d.Cost, 64)
+	if err != nil {
+		return Segment{}, false
+	}
+	formatted := fmt.Sprintf("$%.*f", decimals, f)
+	text := FG(c.Get("VL_FG_TEXT")) + " " + formatted + " "
+	return Segment{BG: c.Get("VL_BG_COST"), Text: text}, true
+}
+
+func segClock(c *conf.Config, d Data) (Segment, bool) {
+	mode := c.Get("VL_CLOCK")
+	if mode == "off" {
+		return Segment{}, false
+	}
+	t := time.Unix(d.Now, 0)
+	var formatted string
+	if mode == "24h" {
+		if c.Get("VL_CLOCK_SECONDS") == "1" {
+			formatted = t.Format("15:04:05")
+		} else {
+			formatted = t.Format("15:04")
+		}
+	} else {
+		if c.Get("VL_CLOCK_SECONDS") == "1" {
+			formatted = t.Format("03:04:05 PM")
+		} else {
+			formatted = t.Format("03:04 PM")
+		}
+		formatted = strings.ToLower(formatted)
+	}
+	text := FG(c.Get("VL_FG_TEXT")) + " ⊙ " + formatted + " "
+	return Segment{BG: c.Get("VL_BG_CLOCK"), Text: text}, true
+}
+
+func segLines(c *conf.Config, d Data) (Segment, bool) {
+	if d.LinesAdd <= 0 && d.LinesDel <= 0 {
+		return Segment{}, false
+	}
+	fgOk := FG(c.Get("VL_FG_OK"))
+	fgHot := FG(c.Get("VL_FG_HOT"))
+	text := " " + fgOk + "+" + strconv.FormatInt(d.LinesAdd, 10) + " " + fgHot + "-" + strconv.FormatInt(d.LinesDel, 10) + " "
+	return Segment{BG: c.Get("VL_BG_LINES"), Text: text}, true
+}
+
+func segTokens(c *conf.Config, d Data) (Segment, bool) {
+	if d.CtxPct == "" {
+		return Segment{}, false
+	}
+	fgd := FG(c.Get("VL_FG_DIM"))
+	bg := c.Get("VL_BG_TOKENS")
+	if bg == "" {
+		bg = c.Get("VL_BG_CTX")
+	}
+	text := fgd + " ↑" + FmtTok(d.TokIn) + " ↓" + FmtTok(d.TokOut) + " cr:" + FmtTok(d.TokCR) + " cw:" + FmtTok(d.TokCW) + " "
+	return Segment{BG: bg, Text: text}, true
+}
+
+func segStyle(c *conf.Config, d Data) (Segment, bool) {
+	if d.OutStyle == "" || d.OutStyle == "default" {
+		return Segment{}, false
+	}
+	text := FG(c.Get("VL_FG_TEXT")) + " ✎ " + d.OutStyle + " "
+	return Segment{BG: c.Get("VL_BG_STYLE"), Text: text}, true
+}
+
+// fmtDuration mirrors statusline.sh fmt_duration: ms → h/m/s.
+func fmtDuration(ms int64) string {
+	s := ms / 1000
+	h := s / 3600
+	m := (s % 3600) / 60
+	switch {
+	case h > 0:
+		return fmt.Sprintf("%dh%02dm", h, m)
+	case m > 0:
+		return fmt.Sprintf("%dm", m)
+	default:
+		return fmt.Sprintf("%ds", s)
+	}
+}
+
+func segDuration(c *conf.Config, d Data) (Segment, bool) {
+	if d.DurMs <= 0 {
+		return Segment{}, false
+	}
+	text := FG(c.Get("VL_FG_TEXT")) + " ⧖ " + fmtDuration(d.DurMs) + " "
+	return Segment{BG: c.Get("VL_BG_DURATION"), Text: text}, true
+}
+
+func segStash(c *conf.Config, d Data) (Segment, bool) {
+	if !d.Git.Present() || d.StashCount <= 0 {
+		return Segment{}, false
+	}
+	bg := c.Get("VL_BG_STASH")
+	if bg == "" {
+		bg = c.Get("VL_BG_GIT_OK")
+	}
+	text := FG(c.Get("VL_FG_TEXT")) + " ⚑ " + strconv.Itoa(d.StashCount) + " "
+	return Segment{BG: bg, Text: text}, true
+}
+
+func segProject(c *conf.Config, d Data) (Segment, bool) {
+	if d.GitRoot == "" {
+		// Not in a git repo: fall back to dir if dir isn't already shown.
+		if strings.Contains(d.SegScan, " dir ") {
+			return Segment{}, false
+		}
+		return segDir(c, d)
+	}
+	name := filepath.Base(d.GitRoot)
+	name = trunc(name, confInt(c, "VL_NAME_MAX", 0))
+	bg := c.Get("VL_BG_PROJECT")
+	if bg == "" {
+		bg = c.Get("VL_BG_DIR")
+	}
+	text := Bold + FG(c.Get("VL_FG_TEXT")) + " ⬢ " + name + " " + Norm
+	return Segment{BG: bg, Text: text}, true
+}
+
+func segNode(c *conf.Config, d Data) (Segment, bool) {
+	if d.NodeVersion == "" {
+		return Segment{}, false
+	}
+	bg := c.Get("VL_BG_NODE")
+	if bg == "" {
+		bg = c.Get("VL_BG_MODEL")
+	}
+	glyph := c.Get("VL_NODE_GLYPH")
+	if glyph == "" {
+		glyph = "\xee\x9c\x98" // U+E718 Nerd Font node
+	}
+	text := FG(c.Get("VL_FG_TEXT")) + " " + glyph + " " + d.NodeVersion + " "
+	return Segment{BG: bg, Text: text}, true
+}
+
+func segPython(c *conf.Config, d Data) (Segment, bool) {
+	if d.PythonVersion == "" {
+		return Segment{}, false
+	}
+	bg := c.Get("VL_BG_PYTHON")
+	if bg == "" {
+		bg = c.Get("VL_BG_MODEL")
+	}
+	glyph := c.Get("VL_PY_GLYPH")
+	if glyph == "" {
+		glyph = "\xee\x9c\xbc" // U+E73C Nerd Font python
+	}
+	text := FG(c.Get("VL_FG_TEXT")) + " " + glyph + " " + d.PythonVersion + " "
 	return Segment{BG: bg, Text: text}, true
 }

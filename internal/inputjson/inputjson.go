@@ -19,18 +19,23 @@ const MaxInputBytes = 4 << 20
 // as their raw string representation (as the bash `jq ... | tostring` path does)
 // so byte-for-byte data-file compatibility is preserved downstream.
 type Input struct {
-	Cwd    string // workspace.current_dir, fallback cwd
-	Model  string // model.display_name
-	CtxPct string // context_window.used_percentage (raw)
-	TokIn  int64  // context_window.total_input_tokens
-	TokOut int64  // context_window.total_output_tokens
-	TokCR  int64  // context_window.current_usage.cache_read_input_tokens
-	TokCW  int64  // context_window.current_usage.cache_creation_input_tokens
-	FhPct  string // rate_limits.five_hour.used_percentage (raw)
-	FhRst  string // rate_limits.five_hour.resets_at
-	WdPct  string // rate_limits.seven_day.used_percentage (raw)
-	WdRst  string // rate_limits.seven_day.resets_at
-	Effort string // effort.level
+	Cwd      string // workspace.current_dir, fallback cwd
+	Model    string // model.display_name
+	CtxPct   string // context_window.used_percentage (raw)
+	TokIn    int64  // context_window.total_input_tokens
+	TokOut   int64  // context_window.total_output_tokens
+	TokCR    int64  // context_window.current_usage.cache_read_input_tokens
+	TokCW    int64  // context_window.current_usage.cache_creation_input_tokens
+	FhPct    string // rate_limits.five_hour.used_percentage (raw)
+	FhRst    string // rate_limits.five_hour.resets_at
+	WdPct    string // rate_limits.seven_day.used_percentage (raw)
+	WdRst    string // rate_limits.seven_day.resets_at
+	Effort   string // effort.level
+	Cost     string // cost.total_cost_usd (raw string, like FhPct)
+	LinesAdd int64  // cost.total_lines_added
+	LinesDel int64  // cost.total_lines_removed
+	OutStyle string // output_style.name
+	DurMs    int64  // cost.total_duration_ms
 }
 
 // flexStr captures a scalar as its raw text whether the producer sent a JSON
@@ -93,6 +98,15 @@ type raw struct {
 	Effort struct {
 		Level string `json:"level"`
 	} `json:"effort"`
+	Cost struct {
+		TotalCostUsd      flexStr `json:"total_cost_usd"`
+		TotalLinesAdded   flexStr `json:"total_lines_added"`
+		TotalLinesRemoved flexStr `json:"total_lines_removed"`
+		TotalDurationMs   flexStr `json:"total_duration_ms"`
+	} `json:"cost"`
+	OutputStyle struct {
+		Name string `json:"name"`
+	} `json:"output_style"`
 }
 
 // Parse reads at most MaxInputBytes from r and returns the extracted Input.
@@ -108,18 +122,23 @@ func Parse(r io.Reader) Input {
 		cwd = rw.Cwd
 	}
 	return Input{
-		Cwd:    cwd,
-		Model:  rw.Model.DisplayName,
-		CtxPct: string(rw.ContextWindow.UsedPercentage),
-		TokIn:  numToInt(rw.ContextWindow.TotalInputTokens),
-		TokOut: numToInt(rw.ContextWindow.TotalOutputTokens),
-		TokCR:  numToInt(rw.ContextWindow.CurrentUsage.CacheRead),
-		TokCW:  numToInt(rw.ContextWindow.CurrentUsage.CacheCreation),
-		FhPct:  string(rw.RateLimits.FiveHour.UsedPercentage),
-		FhRst:  string(rw.RateLimits.FiveHour.ResetsAt),
-		WdPct:  string(rw.RateLimits.SevenDay.UsedPercentage),
-		WdRst:  string(rw.RateLimits.SevenDay.ResetsAt),
-		Effort: rw.Effort.Level,
+		Cwd:      cwd,
+		Model:    rw.Model.DisplayName,
+		CtxPct:   string(rw.ContextWindow.UsedPercentage),
+		TokIn:    numToInt(rw.ContextWindow.TotalInputTokens),
+		TokOut:   numToInt(rw.ContextWindow.TotalOutputTokens),
+		TokCR:    numToInt(rw.ContextWindow.CurrentUsage.CacheRead),
+		TokCW:    numToInt(rw.ContextWindow.CurrentUsage.CacheCreation),
+		FhPct:    string(rw.RateLimits.FiveHour.UsedPercentage),
+		FhRst:    string(rw.RateLimits.FiveHour.ResetsAt),
+		WdPct:    string(rw.RateLimits.SevenDay.UsedPercentage),
+		WdRst:    string(rw.RateLimits.SevenDay.ResetsAt),
+		Effort:   rw.Effort.Level,
+		Cost:     string(rw.Cost.TotalCostUsd),
+		LinesAdd: numToInt(rw.Cost.TotalLinesAdded),
+		LinesDel: numToInt(rw.Cost.TotalLinesRemoved),
+		OutStyle: rw.OutputStyle.Name,
+		DurMs:    numToInt(rw.Cost.TotalDurationMs),
 	}
 }
 

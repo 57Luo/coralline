@@ -84,6 +84,20 @@ func TestParseNotARepo(t *testing.T) {
 	}
 }
 
+func TestParseDoesNotSetRootOrStashCount(t *testing.T) {
+	// Root and StashCount are populated by Run (via extra git subprocess
+	// calls), not by Parse, which only handles porcelain v2 status output.
+	out := "# branch.oid abcdef1234567890abcdef1234567890abcdef12\n" +
+		"# branch.head main\n"
+	st := Parse(out)
+	if st.Root != "" {
+		t.Errorf("Root = %q, want empty (Parse does not populate Root)", st.Root)
+	}
+	if st.StashCount != 0 {
+		t.Errorf("StashCount = %d, want 0 (Parse does not populate StashCount)", st.StashCount)
+	}
+}
+
 // TestHelperProcess is not a real test; it is re-executed as a stand-in for a
 // hung git that sleeps well past the timeout.
 func TestHelperProcess(t *testing.T) {

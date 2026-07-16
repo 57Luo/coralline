@@ -1290,9 +1290,21 @@ THEMES
 }
 
 update_settings() {
-  local tmp backup bash_cmd
+  local tmp backup bash_cmd go_bin=""
   command -v jq >/dev/null 2>&1 || die "jq is required to merge Claude settings"
-  if [ -n "${MSYSTEM:-}" ] || [ "$(uname -o 2>/dev/null)" = "Msys" ]; then
+  # Prefer Go binary over bash statusline.sh when available.
+  if [ -x "$TARGET_DIR/coralline" ]; then
+    go_bin="$TARGET_DIR/coralline"
+  elif [ -x "$TARGET_DIR/coralline.exe" ]; then
+    go_bin="$TARGET_DIR/coralline.exe"
+  fi
+  if [ -n "$go_bin" ]; then
+    if [ -n "${MSYSTEM:-}" ] || [ "$(uname -o 2>/dev/null)" = "Msys" ]; then
+      bash_cmd="$(cygpath -m "$go_bin")"
+    else
+      bash_cmd="$go_bin"
+    fi
+  elif [ -n "${MSYSTEM:-}" ] || [ "$(uname -o 2>/dev/null)" = "Msys" ]; then
     bash_cmd="\"C:/Program Files/Git/bin/bash.exe\" $(cygpath -m "$TARGET_DIR/statusline.sh")"
   else
     bash_cmd="bash $TARGET_DIR/statusline.sh"

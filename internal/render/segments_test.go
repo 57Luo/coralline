@@ -113,9 +113,9 @@ func TestGitDirtyMarks(t *testing.T) {
 // A line whose segments are all hidden or unimplemented is omitted entirely.
 func TestLayoutOmitsEmptyAndSkipsUnimplemented(t *testing.T) {
 	c := conf.Defaults()
-	c.Set("VL_SEGMENTS", "model")       // visible
-	c.Set("VL_SEGMENTS2", "cost clock") // unimplemented → skipped → line omitted
-	c.Set("VL_SEGMENTS3", "git")        // hidden (no repo) → line omitted
+	c.Set("VL_SEGMENTS", "model")          // visible
+	c.Set("VL_SEGMENTS2", "noseg1 noseg2") // unimplemented → skipped → line omitted
+	c.Set("VL_SEGMENTS3", "git")           // hidden (no repo) → line omitted
 	out := Statusline(c, Data{Model: "Claude Fable 5"})
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
 	if len(lines) != 1 {
@@ -136,5 +136,214 @@ func TestLayoutMaxLines(t *testing.T) {
 	out := Statusline(c, Data{Model: "Claude X", Effort: "high", Cwd: "/a/b"})
 	if n := strings.Count(out, "\n"); n != 2 {
 		t.Errorf("VL_MAX_LINES=2 should yield 2 lines, got %d: %q", n, out)
+	}
+}
+
+func TestSegCost(t *testing.T) {
+	c := conf.Defaults()
+	seg, ok := segCost(c, Data{Cost: "1.2345"})
+	if !ok {
+		t.Fatal("cost should be visible")
+	}
+	if !strings.Contains(seg.Text, "$1.23") {
+		t.Errorf("cost text wrong: %q", seg.Text)
+	}
+}
+
+func TestSegCostZero(t *testing.T) {
+	if _, ok := segCost(conf.Defaults(), Data{Cost: "0"}); ok {
+		t.Error("cost should be hidden when zero")
+	}
+}
+
+func TestSegCostEmpty(t *testing.T) {
+	if _, ok := segCost(conf.Defaults(), Data{}); ok {
+		t.Error("cost should be hidden when empty")
+	}
+}
+
+func TestSegLines(t *testing.T) {
+	c := conf.Defaults()
+	seg, ok := segLines(c, Data{LinesAdd: 42, LinesDel: 7})
+	if !ok {
+		t.Fatal("lines should be visible")
+	}
+	if !strings.Contains(seg.Text, "+42") || !strings.Contains(seg.Text, "-7") {
+		t.Errorf("lines text wrong: %q", seg.Text)
+	}
+}
+
+func TestSegLinesZero(t *testing.T) {
+	if _, ok := segLines(conf.Defaults(), Data{}); ok {
+		t.Error("lines should be hidden when both zero")
+	}
+}
+
+func TestSegTokens(t *testing.T) {
+	c := conf.Defaults()
+	seg, ok := segTokens(c, Data{CtxPct: "50", TokIn: 1000, TokOut: 500, TokCR: 2000, TokCW: 100})
+	if !ok {
+		t.Fatal("tokens should be visible")
+	}
+	if !strings.Contains(seg.Text, "↑1.0k") {
+		t.Errorf("tokens text wrong: %q", seg.Text)
+	}
+}
+
+func TestSegTokensHiddenNoCtx(t *testing.T) {
+	if _, ok := segTokens(conf.Defaults(), Data{TokIn: 1000}); ok {
+		t.Error("tokens should be hidden when ctx_pct empty")
+	}
+}
+
+func TestSegStyle(t *testing.T) {
+	c := conf.Defaults()
+	seg, ok := segStyle(c, Data{OutStyle: "concise"})
+	if !ok {
+		t.Fatal("style should be visible")
+	}
+	if !strings.Contains(seg.Text, "✎ concise") {
+		t.Errorf("style text wrong: %q", seg.Text)
+	}
+}
+
+func TestSegStyleDefault(t *testing.T) {
+	if _, ok := segStyle(conf.Defaults(), Data{OutStyle: "default"}); ok {
+		t.Error("style should be hidden for default")
+	}
+}
+
+func TestSegDuration(t *testing.T) {
+	c := conf.Defaults()
+	seg, ok := segDuration(c, Data{DurMs: 5025000})
+	if !ok {
+		t.Fatal("duration should be visible")
+	}
+	if !strings.Contains(seg.Text, "⧖ 1h23m") {
+		t.Errorf("duration text wrong: %q", seg.Text)
+	}
+}
+
+func TestSegDurationZero(t *testing.T) {
+	if _, ok := segDuration(conf.Defaults(), Data{}); ok {
+		t.Error("duration should be hidden when zero")
+	}
+}
+
+func TestSegDurationSeconds(t *testing.T) {
+	seg, ok := segDuration(conf.Defaults(), Data{DurMs: 45000})
+	if !ok {
+		t.Fatal("duration should be visible")
+	}
+	if !strings.Contains(seg.Text, "45s") {
+		t.Errorf("duration text wrong: %q", seg.Text)
+	}
+}
+
+func TestSegStash(t *testing.T) {
+	c := conf.Defaults()
+	st := gitstate.Parse("# branch.oid " + strings.Repeat("a", 40) + "\n# branch.head main\n")
+	seg, ok := segStash(c, Data{Git: st, StashCount: 3})
+	if !ok {
+		t.Fatal("stash should be visible")
+	}
+	if !strings.Contains(seg.Text, "⚑ 3") {
+		t.Errorf("stash text wrong: %q", seg.Text)
+	}
+}
+
+func TestSegStashZero(t *testing.T) {
+	st := gitstate.Parse("# branch.oid " + strings.Repeat("a", 40) + "\n# branch.head main\n")
+	if _, ok := segStash(conf.Defaults(), Data{Git: st, StashCount: 0}); ok {
+		t.Error("stash should be hidden when zero")
+	}
+}
+
+func TestSegStashNoGit(t *testing.T) {
+	if _, ok := segStash(conf.Defaults(), Data{StashCount: 5}); ok {
+		t.Error("stash should be hidden outside git repo")
+	}
+}
+
+func TestSegProject(t *testing.T) {
+	c := conf.Defaults()
+	seg, ok := segProject(c, Data{GitRoot: "/home/user/my-project"})
+	if !ok {
+		t.Fatal("project should be visible")
+	}
+	if !strings.Contains(seg.Text, "⬢ my-project") {
+		t.Errorf("project text wrong: %q", seg.Text)
+	}
+}
+
+func TestSegProjectFallbackToDir(t *testing.T) {
+	c := conf.Defaults()
+	seg, ok := segProject(c, Data{Cwd: "/tmp/work", SegScan: " model git "})
+	if !ok {
+		t.Fatal("project should fall back to dir")
+	}
+	if !strings.Contains(seg.Text, "/tmp/work") {
+		t.Errorf("project fallback text wrong: %q", seg.Text)
+	}
+}
+
+func TestSegProjectSuppressedWhenDirPresent(t *testing.T) {
+	if _, ok := segProject(conf.Defaults(), Data{Cwd: "/tmp/work", SegScan: " dir git "}); ok {
+		t.Error("project should be hidden when dir is already in segments and not in git repo")
+	}
+}
+
+func TestSegNode(t *testing.T) {
+	c := conf.Defaults()
+	seg, ok := segNode(c, Data{NodeVersion: "20.11.0"})
+	if !ok {
+		t.Fatal("node should be visible")
+	}
+	if !strings.Contains(seg.Text, "20.11.0") {
+		t.Errorf("node text wrong: %q", seg.Text)
+	}
+}
+
+func TestSegNodeEmpty(t *testing.T) {
+	if _, ok := segNode(conf.Defaults(), Data{}); ok {
+		t.Error("node should be hidden when empty")
+	}
+}
+
+func TestSegPython(t *testing.T) {
+	c := conf.Defaults()
+	seg, ok := segPython(c, Data{PythonVersion: "myenv"})
+	if !ok {
+		t.Fatal("python should be visible")
+	}
+	if !strings.Contains(seg.Text, "myenv") {
+		t.Errorf("python text wrong: %q", seg.Text)
+	}
+}
+
+func TestSegPythonEmpty(t *testing.T) {
+	if _, ok := segPython(conf.Defaults(), Data{}); ok {
+		t.Error("python should be hidden when empty")
+	}
+}
+
+func TestSegClockOff(t *testing.T) {
+	c := conf.Defaults()
+	c.Set("VL_CLOCK", "off")
+	if _, ok := segClock(c, Data{Now: 1700000000}); ok {
+		t.Error("clock should be hidden when off")
+	}
+}
+
+func TestSegClock24h(t *testing.T) {
+	c := conf.Defaults()
+	c.Set("VL_CLOCK", "24h")
+	c.Set("VL_CLOCK_SECONDS", "0")
+	seg, ok := segClock(c, Data{Now: 1700000000})
+	if !ok {
+		t.Fatal("clock should be visible")
+	}
+	if !strings.Contains(seg.Text, "⊙") {
+		t.Errorf("clock should have clock glyph: %q", seg.Text)
 	}
 }

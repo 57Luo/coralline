@@ -18,11 +18,13 @@ var Timeout = 2500 * time.Millisecond
 
 // State holds the parsed git status the git segment renders.
 type State struct {
-	Branch string // branch name, or short oid when detached
-	Marks  string // staged '+', modified '!', untracked '?' in that order
-	AB     string // ahead/behind, e.g. "⇡2⇣1"
-	Dirty  bool   // true when any mark is set
-	oid    string // branch.oid; empty means "not a repo"
+	Branch     string // branch name, or short oid when detached
+	Marks      string // staged '+', modified '!', untracked '?' in that order
+	AB         string // ahead/behind, e.g. "⇡2⇣1"
+	Dirty      bool   // true when any mark is set
+	Root       string // repo root directory (for project segment)
+	StashCount int    // git stash count
+	oid        string // branch.oid; empty means "not a repo"
 }
 
 // Present reports whether the cwd is inside a git repository (the git segment is
@@ -55,7 +57,25 @@ func Run(parent context.Context, cwd string) State {
 		// Timeout, non-repo error, or missing git: hide the segment.
 		return State{}
 	}
-	return Parse(string(out))
+	st := Parse(string(out))
+
+	// Get repo root for project segment
+	rootCmd := exec.CommandContext(ctx, "git", "-C", cwd, "rev-parse", "--show-toplevel")
+	rootCmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
+	if rootOut, err := rootCmd.Output(); err == nil {
+		st.Root = strings.TrimSpace(string(rootOut))
+	}
+
+	// Count stash entries for stash segment
+	stashCmd := exec.CommandContext(ctx, "git", "-C", cwd, "rev-list", "--walk-reflogs", "--count", "refs/stash")
+	stashCmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
+	if stashOut, err := stashCmd.Output(); err == nil {
+		if n, err := strconv.Atoi(strings.TrimSpace(string(stashOut))); err == nil {
+			st.StashCount = n
+		}
+	}
+
+	return st
 }
 
 // Parse parses `git status --porcelain=v2 --branch` output. Empty/ownerless

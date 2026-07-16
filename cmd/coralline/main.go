@@ -13,6 +13,7 @@ import (
 	"coralline/internal/gitstate"
 	"coralline/internal/inputjson"
 	"coralline/internal/render"
+	"coralline/internal/runtime"
 	"coralline/internal/usage"
 )
 
@@ -66,7 +67,7 @@ func renderStatusline(in inputjson.Input, now int64) string {
 
 	// Single git subprocess, only when a git segment is present.
 	var git gitstate.State
-	if has("git") {
+	if has("git") || has("stash") || has("project") {
 		git = gitstate.Run(context.Background(), in.Cwd)
 	}
 
@@ -111,6 +112,16 @@ func renderStatusline(in inputjson.Input, now int64) string {
 		burn = usage.BurnEstimate(burnFile, now, int64(burnWin), int64(trim), limitSync, rl7dFile, in.WdPct, in.WdRst)
 	}
 
+	// Runtime detection for node/python segments.
+	probe := c.Get("VL_RUNTIME_PROBE") == "1"
+	var nodeVer, pyVer string
+	if has("node") {
+		nodeVer = runtime.DetectNode(in.Cwd, probe)
+	}
+	if has("python") {
+		pyVer = runtime.DetectPython(in.Cwd, probe)
+	}
+
 	d := render.Data{
 		Cwd:    in.Cwd,
 		Home:   homeDir(),
@@ -132,6 +143,17 @@ func renderStatusline(in inputjson.Input, now int64) string {
 		},
 		BurnGuard: in.FhPct != "" || in.WdPct != "",
 		Now:       now,
+
+		Cost:          in.Cost,
+		LinesAdd:      in.LinesAdd,
+		LinesDel:      in.LinesDel,
+		OutStyle:      in.OutStyle,
+		DurMs:         in.DurMs,
+		StashCount:    git.StashCount,
+		GitRoot:       git.Root,
+		NodeVersion:   nodeVer,
+		PythonVersion: pyVer,
+		SegScan:       scan,
 	}
 	return render.Statusline(c, d)
 }

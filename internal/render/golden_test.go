@@ -41,6 +41,11 @@ func TestGoldenPill(t *testing.T) {
 		TokCR:  in.TokCR,
 		TokCW:  in.TokCW,
 		Effort: in.Effort,
+		Cost:   in.Cost,
+		LinesAdd: in.LinesAdd,
+		LinesDel: in.LinesDel,
+		OutStyle: in.OutStyle,
+		DurMs:    in.DurMs,
 		// Git segment hidden: the input cwd is not a repository (matches how the
 		// oracle was generated).
 		Fh:        Limit{Pct: in.FhPct, Reset: in.FhRst},

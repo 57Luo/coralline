@@ -22,7 +22,14 @@ const fullJSON = `{
     "five_hour": {"used_percentage": 41, "resets_at": "2026-07-14T10:00:00Z"},
     "seven_day": {"used_percentage": 79, "resets_at": "2026-07-18T00:00:00Z"}
   },
-  "effort": {"level": "high"}
+  "effort": {"level": "high"},
+  "cost": {
+    "total_cost_usd": "1.2345",
+    "total_lines_added": 42,
+    "total_lines_removed": 7,
+    "total_duration_ms": 5025000
+  },
+  "output_style": {"name": "concise"}
 }`
 
 func TestParseFull(t *testing.T) {
@@ -49,6 +56,18 @@ func TestParseFull(t *testing.T) {
 	if in.Effort != "high" {
 		t.Errorf("Effort = %q", in.Effort)
 	}
+	if in.Cost != "1.2345" {
+		t.Errorf("Cost = %q, want 1.2345", in.Cost)
+	}
+	if in.LinesAdd != 42 || in.LinesDel != 7 {
+		t.Errorf("lines = %d/%d, want 42/7", in.LinesAdd, in.LinesDel)
+	}
+	if in.OutStyle != "concise" {
+		t.Errorf("OutStyle = %q, want concise", in.OutStyle)
+	}
+	if in.DurMs != 5025000 {
+		t.Errorf("DurMs = %d, want 5025000", in.DurMs)
+	}
 }
 
 func TestCwdFallback(t *testing.T) {
@@ -61,10 +80,12 @@ func TestCwdFallback(t *testing.T) {
 func TestMissingFields(t *testing.T) {
 	in := Parse(strings.NewReader(`{}`))
 	if in.Cwd != "" || in.Model != "" || in.CtxPct != "" || in.FhPct != "" ||
-		in.FhRst != "" || in.WdPct != "" || in.WdRst != "" || in.Effort != "" {
+		in.FhRst != "" || in.WdPct != "" || in.WdRst != "" || in.Effort != "" ||
+		in.Cost != "" || in.OutStyle != "" {
 		t.Errorf("missing fields should be empty strings, got %+v", in)
 	}
-	if in.TokIn != 0 || in.TokOut != 0 || in.TokCR != 0 || in.TokCW != 0 {
+	if in.TokIn != 0 || in.TokOut != 0 || in.TokCR != 0 || in.TokCW != 0 ||
+		in.LinesAdd != 0 || in.LinesDel != 0 || in.DurMs != 0 {
 		t.Errorf("missing token fields should be zero, got %+v", in)
 	}
 }

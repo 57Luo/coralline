@@ -1,10 +1,7 @@
 package conf
 
 // defaults mirrors the built-in default values from statusline.sh's defaults
-// block (before the user config is sourced). Only the variables consumed by the
-// segments in this batch (dir/git/model/effort/ctx/limit5h/limit7d/burn), the
-// pill layout, and the data files are included; other bash defaults are omitted
-// intentionally (out of scope for go-renderer-core).
+// block (before the user config is sourced).
 var defaults = map[string]string{
 	// Style / layout.
 	"VL_STYLE":     "pill",
@@ -53,6 +50,22 @@ var defaults = map[string]string{
 	"VL_BG_5H":        "237",
 	"VL_BG_7D":        "236",
 	"VL_BG_EFFORT":    "141",
+
+	"VL_BG_COST":     "212,125,145",
+	"VL_BG_CLOCK":    "70,80,110",
+	"VL_BG_LINES":    "240",
+	"VL_BG_STYLE":    "96",
+	"VL_BG_DURATION": "60",
+	"VL_BG_TOKENS":   "",
+	"VL_BG_NODE":     "",
+	"VL_BG_PYTHON":   "",
+
+	"VL_COST_DECIMALS": "2",
+	"VL_CLOCK":         "12h",
+	"VL_CLOCK_SECONDS": "1",
+	"VL_RUNTIME_PROBE": "0",
+	"VL_NODE_GLYPH":    "",
+	"VL_PY_GLYPH":      "",
 
 	"VL_FG_TEXT": "231",
 	"VL_FG_DIM":  "245",
