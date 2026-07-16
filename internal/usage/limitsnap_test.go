@@ -91,6 +91,83 @@ func TestSampleRejectsFarFuture(t *testing.T) {
 	}
 }
 
+// Spec example: 7d window reset from 75% to 3% — same reset epoch, drop beyond
+// the 5-point threshold purges the stale high-water.
+func TestSampleResetPurgesSameEpochHighWater(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "limit-7d.tsv")
+	now := int64(1784300000)
+	mustMkdir(t, StorePath(file), "1784311200_075.000")
+
+	if err := Sample(file, "3.0", "1784311200", now, RLMax7d); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(StorePath(file), "1784311200_075.000")); !os.IsNotExist(err) {
+		t.Errorf("stale high-water entry should have been purged")
+	}
+	snap := Latest(file, now, RLMax7d)
+	if !snap.OK || snap.Reset != 1784311200 || snap.Pct != "003.000" {
+		t.Fatalf("Latest = %+v, want reset 1784311200 pct 003.000", snap)
+	}
+}
+
+// Spec example: stale session reports 74.5 against a 75.0 high-water — a drop
+// within the 5-point jitter threshold must not purge.
+func TestSampleJitterWithinThresholdKeepsHighWater(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "limit-7d.tsv")
+	now := int64(1784300000)
+	mustMkdir(t, StorePath(file), "1784311200_075.000")
+
+	if err := Sample(file, "74.5", "1784311200", now, RLMax7d); err != nil {
+		t.Fatal(err)
+	}
+	snap := Latest(file, now, RLMax7d)
+	if !snap.OK || snap.Pct != "075.000" {
+		t.Fatalf("Latest = %+v, want high-water 075.000 preserved", snap)
+	}
+}
+
+// Spec example: a new 7d window opening at a low percentage is not a reset —
+// detection is scoped to entries sharing the sample's reset epoch.
+func TestSampleDifferentEpochNoPurge(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "limit-7d.tsv")
+	now := int64(1784300000)
+	mustMkdir(t, StorePath(file), "1784311200_075.000")
+
+	if err := Sample(file, "2.0", "1784916000", now, RLMax7d); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(StorePath(file), "1784311200_075.000")); err != nil {
+		t.Errorf("old-window entry must not be deleted by reset detection")
+	}
+	if _, err := os.Stat(filepath.Join(StorePath(file), "1784916000_002.000")); err != nil {
+		t.Errorf("new-window entry should have been recorded")
+	}
+}
+
+// Reset purge failures stay silent: even when deleting the stale entry fails
+// (here forced by making it non-empty; in production a concurrent render may
+// have removed it first), Sample reports no error and still records the sample.
+func TestSampleResetPurgeFailureStaysSilent(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "limit-7d.tsv")
+	now := int64(1784300000)
+	stale := "1784311200_075.000"
+	mustMkdir(t, StorePath(file), stale)
+	if err := os.WriteFile(filepath.Join(StorePath(file), stale, "child"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Sample(file, "3.0", "1784311200", now, RLMax7d); err != nil {
+		t.Fatalf("Sample should ignore purge failures, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(StorePath(file), "1784311200_003.000")); err != nil {
+		t.Errorf("incoming sample should still be recorded after purge failure")
+	}
+}
+
 func names(e []os.DirEntry) []string {
 	var s []string
 	for _, x := range e {

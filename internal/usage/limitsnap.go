@@ -70,10 +70,51 @@ func Sample(file, pctStr, resetStr string, now, maxAhead int64) error {
 			}
 		}
 	}
+	purgeIfReset(store, ep, pct)
 	// Mkdir is atomic; a concurrent identical add is idempotent (already-exists
 	// is not an error worth surfacing).
 	_ = os.Mkdir(filepath.Join(store, snapshotName(ep, pct)), 0o755)
 	return nil
+}
+
+// resetDropThreshold separates an official mid-window usage reset from
+// cross-session read jitter: within one window (one reset epoch) the
+// percentage only ever climbs, so a drop beyond this many points means the
+// provider reset the limit and the stored high-water is stale.
+const resetDropThreshold = 5.0
+
+// purgeIfReset deletes all entries sharing the sample's reset epoch when the
+// highest stored percentage exceeds the incoming one by more than
+// resetDropThreshold. Entries from other epochs are never touched. Deletion
+// errors are ignored (a concurrent render may have removed the entry first).
+func purgeIfReset(store string, ep int64, pct float64) {
+	entries, err := os.ReadDir(store)
+	if err != nil {
+		return
+	}
+	var sameEpoch []string
+	maxPct := pct
+	for _, e := range entries {
+		name := e.Name()
+		reset, ok := parseReset(name)
+		if !ok || reset != ep {
+			continue
+		}
+		p, err := strconv.ParseFloat(name[strings.IndexByte(name, '_')+1:], 64)
+		if err != nil {
+			continue
+		}
+		sameEpoch = append(sameEpoch, name)
+		if p > maxPct {
+			maxPct = p
+		}
+	}
+	if maxPct-pct <= resetDropThreshold {
+		return
+	}
+	for _, name := range sameEpoch {
+		_ = os.Remove(filepath.Join(store, name))
+	}
 }
 
 // Latest reads the store: it selects the entry with the greatest reset epoch,
