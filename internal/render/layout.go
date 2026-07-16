@@ -17,7 +17,7 @@ func Statusline(c *conf.Config, d Data) string {
 		c.Get("VL_SEGMENTS2"),
 		c.Get("VL_SEGMENTS3"),
 	}
-	maxLines := confInt(c, "VL_MAX_LINES", 3)
+	maxLines := c.GetInt("VL_MAX_LINES", 3)
 
 	capL := c.Get("VL_CAP_L")
 	capR := c.Get("VL_CAP_R")

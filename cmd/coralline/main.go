@@ -52,8 +52,8 @@ func renderStatusline(in inputjson.Input, now int64) string {
 	rl7dFile := envOr("CORALLINE_RL7D_FILE", filepath.Join(vlDir, "limit-7d.tsv"))
 
 	limitSync := c.Get("VL_LIMIT_SYNC") == "1"
-	burnWin := confInt(c, "CORALLINE_BURN_WINDOW", 600)
-	trim := confInt(c, "BURN_TRIM", 1500)
+	burnWin := c.GetInt("CORALLINE_BURN_WINDOW", 600)
+	trim := c.GetInt("BURN_TRIM", 1500)
 
 	// Segment scan across all three lists (space-padded, mirrors bash _SEG_SCAN).
 	scan := " " + c.Get("VL_SEGMENTS") + " " + c.Get("VL_SEGMENTS2") + " " + c.Get("VL_SEGMENTS3") + " "
@@ -65,7 +65,9 @@ func renderStatusline(in inputjson.Input, now int64) string {
 		_ = usage.WriteUsageState(usFile, now, in.Model, in.FhPct, in.FhRst, in.WdPct, in.WdRst)
 	}
 
-	// Single git subprocess, only when a git segment is present.
+	// Git state collection, only when a git segment is present. Run spawns up
+	// to three git subprocesses (status, rev-parse --show-toplevel, rev-list
+	// --count) sharing one timeout context that bounds them together.
 	var git gitstate.State
 	if has("git") || has("stash") || has("project") {
 		git = gitstate.Run(context.Background(), in.Cwd)
@@ -179,13 +181,6 @@ func homeDir() string {
 func envOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
-	}
-	return def
-}
-
-func confInt(c *conf.Config, key string, def int) int {
-	if n, err := strconv.Atoi(strings.TrimSpace(c.Get(key))); err == nil {
-		return n
 	}
 	return def
 }

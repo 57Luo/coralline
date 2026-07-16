@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -26,6 +27,15 @@ func (c *Config) Get(key string) string {
 		return ""
 	}
 	return c.values[key]
+}
+
+// GetInt returns the value for key parsed as int, or def when the value is
+// empty or not a number.
+func (c *Config) GetInt(key string, def int) int {
+	if n, err := strconv.Atoi(strings.TrimSpace(c.Get(key))); err == nil {
+		return n
+	}
+	return def
 }
 
 // set records an assignment (later assignments overwrite earlier ones).

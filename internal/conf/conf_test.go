@@ -17,6 +17,28 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
+// GetInt parses a config value as int, falling back to def when the value is
+// empty or not a number (same semantics as the former per-package confInt).
+func TestGetInt(t *testing.T) {
+	c := &Config{values: map[string]string{
+		"VL_BAR_WIDTH":  "7",
+		"VL_PADDED":     " 3 ",
+		"VL_NOT_NUMBER": "wide",
+	}}
+	if got := c.GetInt("VL_BAR_WIDTH", 5); got != 7 {
+		t.Errorf("GetInt valid = %d, want 7", got)
+	}
+	if got := c.GetInt("VL_PADDED", 5); got != 3 {
+		t.Errorf("GetInt padded = %d, want 3", got)
+	}
+	if got := c.GetInt("VL_UNSET", 5); got != 5 {
+		t.Errorf("GetInt empty = %d, want default 5", got)
+	}
+	if got := c.GetInt("VL_NOT_NUMBER", 5); got != 5 {
+		t.Errorf("GetInt non-numeric = %d, want default 5", got)
+	}
+}
+
 // Scenario: User config with theme source is honored, using the REAL deployment
 // two-level layout: the config lives at <root>/coralline.conf while the renderer
 // executable dir ($_VL_DIR) is <root>/coralline, one level below — so the theme

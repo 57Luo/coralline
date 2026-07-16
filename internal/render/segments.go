@@ -99,21 +99,14 @@ func roundPct(s string) int {
 	return v
 }
 
-func confInt(c *conf.Config, key string, def int) int {
-	if n, err := strconv.Atoi(strings.TrimSpace(c.Get(key))); err == nil {
-		return n
-	}
-	return def
-}
-
 // bar builds the gauge bar using the configured width/glyphs.
 func bar(c *conf.Config, pct int) string {
-	return Bar(pct, confInt(c, "VL_BAR_WIDTH", 5), c.Get("VL_BAR_FILL"), c.Get("VL_BAR_EMPTY"))
+	return Bar(pct, c.GetInt("VL_BAR_WIDTH", 5), c.Get("VL_BAR_FILL"), c.Get("VL_BAR_EMPTY"))
 }
 
 // pctColor resolves the threshold color spec for pct.
 func pctColor(c *conf.Config, pct int) string {
-	return PctFG(pct, confInt(c, "VL_WARN_PCT", 50), confInt(c, "VL_HOT_PCT", 75),
+	return PctFG(pct, c.GetInt("VL_WARN_PCT", 50), c.GetInt("VL_HOT_PCT", 75),
 		c.Get("VL_FG_OK"), c.Get("VL_FG_WARN"), c.Get("VL_FG_HOT"))
 }
 
@@ -207,7 +200,7 @@ func segDir(c *conf.Config, d Data) (Segment, bool) {
 	if d.Cwd == "" {
 		return Segment{}, false
 	}
-	short := collapsePath(d.Cwd, d.Home, confInt(c, "VL_PATH_DEPTH", 4))
+	short := collapsePath(d.Cwd, d.Home, c.GetInt("VL_PATH_DEPTH", 4))
 	text := Bold + FG(c.Get("VL_FG_TEXT")) + " " + short + " " + Norm
 	return Segment{BG: c.Get("VL_BG_DIR"), Text: text}, true
 }
@@ -220,7 +213,7 @@ func segGit(c *conf.Config, d Data) (Segment, bool) {
 	if d.Git.Dirty {
 		bg = c.Get("VL_BG_GIT_DIRTY")
 	}
-	branch := trunc(d.Git.Branch, confInt(c, "VL_NAME_MAX", 0))
+	branch := trunc(d.Git.Branch, c.GetInt("VL_NAME_MAX", 0))
 	text := Bold + FG(c.Get("VL_FG_TEXT")) + " ⎇ " + branch + d.Git.Marks + d.Git.AB + " " + Norm
 	return Segment{BG: bg, Text: text}, true
 }
@@ -331,7 +324,7 @@ func segCost(c *conf.Config, d Data) (Segment, bool) {
 	if d.Cost == "" || d.Cost == "0" {
 		return Segment{}, false
 	}
-	decimals := confInt(c, "VL_COST_DECIMALS", 2)
+	decimals := c.GetInt("VL_COST_DECIMALS", 2)
 	f, err := strconv.ParseFloat(d.Cost, 64)
 	if err != nil {
 		return Segment{}, false
@@ -441,7 +434,7 @@ func segProject(c *conf.Config, d Data) (Segment, bool) {
 		return segDir(c, d)
 	}
 	name := filepath.Base(d.GitRoot)
-	name = trunc(name, confInt(c, "VL_NAME_MAX", 0))
+	name = trunc(name, c.GetInt("VL_NAME_MAX", 0))
 	bg := c.Get("VL_BG_PROJECT")
 	if bg == "" {
 		bg = c.Get("VL_BG_DIR")
