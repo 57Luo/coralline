@@ -278,7 +278,9 @@ bash renderer 也很快：單次 `jq` 呼叫一口氣取出所有欄位，單次
 `git status --porcelain=v2 --branch` 同時拿到分支、檔案狀態與領先/落後數。不依賴
 `bc`，也沒有逐欄位的子程序開銷。macOS 內建的 bash 3.2 和任何 Linux bash 都能跑。
 
-兩版 renderer 都每秒執行一次（`refreshInterval: 1`）且完全不打網路請求。
+兩版 renderer 預設每 10 秒執行一次（`refreshInterval: 10`——Windows 上 Claude Code
+會把每次 statusline 呼叫包在一個 Git Bash 程序裡，間隔越短 MSYS churn 越兇）且完全
+不打網路請求。
 Claude Code 只是把 session 的 JSON 從 stdin 餵進去，再顯示印出的內容。
 
 ## 致敬與致謝

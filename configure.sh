@@ -1321,7 +1321,7 @@ update_settings() {
     if ! jq --arg command "$bash_cmd" '.statusLine = {
       "type": "command",
       "command": $command,
-      "refreshInterval": 1
+      "refreshInterval": 10
     }' "$SETTINGS_FILE" > "$tmp"; then
       rm -f "$tmp"
       die "failed to parse $SETTINGS_FILE; original left unchanged, backup written to $backup"
@@ -1332,7 +1332,7 @@ update_settings() {
   "statusLine": {
     "type": "command",
     "command": "$bash_cmd",
-    "refreshInterval": 1
+    "refreshInterval": 10
   }
 }
 EOF

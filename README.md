@@ -300,7 +300,9 @@ The bash renderer is also fast: one `jq` invocation extracts every field at once
 together. No `bc`, no per-field subprocess spam. Works on stock macOS bash 3.2 and any
 Linux bash.
 
-Both renderers run every second (`refreshInterval: 1`) and make zero network requests.
+Both renderers run every 10 seconds by default (`refreshInterval: 10` — on
+Windows, Claude Code wraps every statusline invocation in a Git Bash process,
+and a lower interval multiplies MSYS churn) and make zero network requests.
 Claude Code pipes the session JSON to them on stdin and renders whatever they print.
 
 ## Acknowledgements

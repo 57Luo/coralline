@@ -47,7 +47,7 @@ Add (or update) the `statusLine` entry in `~/.claude/settings.json`:
   "statusLine": {
     "type": "command",
     "command": "C:/Users/<you>/.claude/coralline/coralline.exe",
-    "refreshInterval": 1
+    "refreshInterval": 10
   }
 }
 ```
@@ -59,7 +59,7 @@ On macOS/Linux:
   "statusLine": {
     "type": "command",
     "command": "~/.claude/coralline/coralline",
-    "refreshInterval": 1
+    "refreshInterval": 10
   }
 }
 ```
@@ -223,7 +223,7 @@ Add to `~/.claude/settings.json`:
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/coralline/statusline.sh",
-    "refreshInterval": 1
+    "refreshInterval": 10
   }
 }
 ```
